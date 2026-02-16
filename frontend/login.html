@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Login to FocusFlow - Smart Study Assistant">
+    <title>Login - FocusFlow</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+
+    <style>
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at 20% 50%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+        }
+
+        .login-card {
+            max-width: 450px;
+            width: 100%;
+            margin: 0 auto;
+            /* Centers the card */
+            animation: slideUp 0.5s ease-out;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-title {
+            font-size: 2rem;
+            font-weight: 800;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            transition: color var(--transition-fast);
+        }
+
+        .back-link:hover {
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="container">
+            <div class="login-card card">
+                <a href="index.html" class="back-link">
+                    ← Back to Home
+                </a>
+
+                <div class="login-header">
+                    <h1 class="login-title">Welcome Back</h1>
+                    <p class="text-secondary">Sign in to continue your focus journey</p>
+                </div>
+
+                <!-- Alert Messages -->
+                <div id="alertContainer"></div>
+
+                <!-- Login Form -->
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email"
+                            placeholder="your.email@example.com" required autocomplete="email">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password"
+                            placeholder="Enter your password" required autocomplete="current-password">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100" id="loginBtn">
+                        <span id="loginBtnText">Sign In</span>
+                        <span id="loginBtnSpinner" class="hidden">Signing in...</span>
+                    </button>
+                </form>
+
+                <div class="text-center mt-4">
+                    <p class="text-secondary">
+                        Don't have an account?
+                        <a href="signup.html" class="text-primary">Sign up</a>
+                    </p>
+                </div>
+
+                <!-- Demo Accounts Info -->
+                <div class="card mt-4"
+                    style="background: var(--bg-tertiary); padding: 1rem; color: var(--text-primary);">
+                    <h6 class="mb-2" style="color: var(--text-primary);">Demo Accounts:</h6>
+                    <div class="text-secondary" style="font-size: 0.875rem; color: var(--text-secondary);">
+                        <p class="mb-1"><strong>Student:</strong> student@gmail.com / student</p>
+                        <p class="mb-1"><strong>Teacher:</strong> teacher@gmail.com / teacher</p>
+                        <p class="mb-0"><strong>Admin:</strong> admin@gmail.com / admin</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Auth Module -->
+    <script src="js/auth.js"></script>
+
+    <!-- Login Logic -->
+    <script>
+        // Check if already logged in - DISABLED per user request
+        // if (isAuthenticated()) {
+        //     const user = getUser();
+        //     if (user.role === 'admin') {
+        //         window.location.href = 'admin.html';
+        //     } else {
+        //         window.location.href = 'dashboard.html';
+        //     }
+        // }
+
+        // Handle form submission
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            // Show loading state
+            const loginBtn = document.getElementById('loginBtn');
+            const loginBtnText = document.getElementById('loginBtnText');
+            const loginBtnSpinner = document.getElementById('loginBtnSpinner');
+
+            loginBtn.disabled = true;
+            loginBtnText.classList.add('hidden');
+            loginBtnSpinner.classList.remove('hidden');
+
+            // Attempt login
+            const result = await login(email, password);
+
+            if (result.success) {
+                showAlert('Login successful! Redirecting...', 'success');
+
+                // Redirect based on role
+                setTimeout(() => {
+                    if (result.user.role === 'admin') {
+                        window.location.href = 'admin.html';
+                    } else if (result.user.role === 'teacher') {
+                        window.location.href = 'teacher_dashboard.html';
+                    } else {
+                        window.location.href = 'student_dashboard.html';
+                    }
+                }, 1000);
+            } else {
+                showAlert(result.error || 'Login failed. Please try again.', 'error');
+
+                // Reset button state
+                loginBtn.disabled = false;
+                loginBtnText.classList.remove('hidden');
+                loginBtnSpinner.classList.add('hidden');
+            }
+        });
+
+        // Show alert message
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
+
+            alertContainer.innerHTML = `
+                <div class="alert ${alertClass}">
+                    ${message}
+                </div>
+            `;
+
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                alertContainer.innerHTML = '';
+            }, 5000);
+        }
+    </script>
+</body>
+
+</html>

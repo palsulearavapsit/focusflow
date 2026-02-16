@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Classroom Stats - FocusFlow">
+    <title>Classroom Dashboard - FocusFlow</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+
+    <style>
+        .stat-card {
+            border: 1px solid var(--bg-tertiary);
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="layout-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="#" class="sidebar-brand">FocusFlow</a>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-item">
+                    <a href="teacher_dashboard.html" class="nav-link">
+                        <span>📊</span>
+                        <span>Dashboard</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="teacher_students.html" class="nav-link">
+                        <span>👥</span>
+                        <span>My Students</span>
+                    </a>
+                </div>
+                <!-- 
+                <div class="nav-item">
+                    <a href="#" class="nav-link active">
+                        <span>🏫</span>
+                        <span>Classroom</span>
+                    </a>
+                </div>
+                 -->
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile mb-3">
+                    <div class="avatar-circle" id="userAvatar">T</div>
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Teacher</div>
+                        <div class="user-role">Teacher</div>
+                    </div>
+                </div>
+                <button class="btn btn-outline btn-sm w-100" onclick="logout()">Sign Out</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="container-fluid">
+                <!-- Header -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="d-flex align-items-center gap-3">
+                        <a href="teacher_dashboard.html" class="btn btn-outline btn-sm">← Back</a>
+                        <div>
+                            <h2 class="mb-0" id="className">Loading...</h2>
+                            <div class="d-flex align-items-center gap-2 mt-1">
+                                <span class="text-secondary small">Class Code:</span>
+                                <code class="text-primary bg-dark px-2 rounded fw-bold" id="classCode">...</code>
+                                <button class="btn btn-sm btn-link p-0 text-decoration-none" onclick="copyCode()"
+                                    title="Copy Code">📋</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary" onclick="showAddStudentModal()">+ Add Student</button>
+                        <button class="btn btn-secondary" onclick="loadClassroomData()">Refresh</button>
+                    </div>
+                </div>
+
+                <!-- Stats Overview -->
+                <div class="row g-4 mb-5">
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <h6 class="text-secondary text-uppercase mb-2" style="font-size: 0.75rem;">Total Students
+                            </h6>
+                            <h2 class="mb-0" id="totalStudents">--</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <h6 class="text-secondary text-uppercase mb-2" style="font-size: 0.75rem;">Avg Focus Score
+                            </h6>
+                            <h2 class="mb-0 text-primary" id="classAvgScore">--</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <h6 class="text-secondary text-uppercase mb-2" style="font-size: 0.75rem;">Total Sessions
+                            </h6>
+                            <h2 class="mb-0 text-success" id="totalSessions">--</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="row g-4 mb-5">
+                    <div class="col-lg-8">
+                        <div class="stat-card h-100">
+                            <h5 class="card-title mb-4">Student Focus Performance</h5>
+                            <canvas id="performanceChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="stat-card h-100">
+                            <h5 class="card-title mb-4">Focus Distribution</h5>
+                            <div style="height: 300px; display: flex; justify-content: center; align-items: center;">
+                                <canvas id="distributionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Student List -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Student Performance</h5>
+                        <!-- Search could go here -->
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover text-white mb-0"
+                                style="--bs-table-bg: transparent; --bs-table-color: var(--text-primary); --bs-table-hover-bg: var(--bg-hover);">
+                                <thead style="border-bottom: 1px solid var(--bg-tertiary);">
+                                    <tr>
+                                        <th class="p-3">Student</th>
+                                        <th class="p-3">Sessions</th>
+                                        <th class="p-3">Total Time</th>
+                                        <th class="p-3">Avg Focus</th>
+                                        <th class="p-3">Status</th>
+                                        <th class="p-3 text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="studentsTableBody">
+                                    <tr>
+                                        <td colspan="6" class="text-center p-4">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Student Modal -->
+    <div class="modal fade" id="addStudentModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content" style="background-color: var(--bg-card); color: var(--text-primary);">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Add Student</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-secondary mb-3">Share the class code with your students to let them join:</p>
+                    <div class="d-flex align-items-center gap-2 mb-4 p-3 bg-dark rounded">
+                        <code class="fs-4 text-primary flex-grow-1 text-center" id="modalClassCode">...</code>
+                        <button class="btn btn-sm btn-outline-primary" onclick="copyCode()">Copy</button>
+                    </div>
+
+                    <!-- 
+                    <hr class="border-secondary my-4">
+                    <p class="text-secondary small">Or add manually (Future Feature)</p>
+                     -->
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+        <!-- Student Sessions Modal -->
+        <div class="modal fade" id="studentSessionsModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content" style="background-color: var(--bg-card); color: var(--text-primary);">
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title">Sessions: <span id="sessionStudentName"></span></h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover text-white mb-0"
+                                style="--bs-table-bg: transparent; --bs-table-color: var(--text-primary); --bs-table-hover-bg: var(--bg-hover);">
+                                <thead style="border-bottom: 1px solid var(--bg-tertiary);">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Technique</th>
+                                        <th>Duration</th>
+                                        <th>Focus Score</th>
+                                        <th>State</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sessionsTableBody">
+                                    <!-- Sessions will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bootstrap JS -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="js/auth.js?v=2"></script>
+        <script>
+            const urlParams = new URLSearchParams(window.location.search);
+            const classroomId = urlParams.get('id');
+
+            document.addEventListener('DOMContentLoaded', async () => {
+                if (!await protectPage('teacher')) return;
+
+                // Set user info
+                const user = getUser();
+                if (user) {
+                    document.getElementById('userName').innerText = user.username;
+                    document.getElementById('userAvatar').innerText = user.username.charAt(0).toUpperCase();
+                }
+
+                if (!classroomId) {
+                    window.location.href = 'teacher_dashboard.html';
+                    return;
+                }
+                loadClassroomData();
+            });
+
+            let currentStudents = [];
+            let performanceChartInstance = null;
+            let distributionChartInstance = null;
+
+            async function loadClassroomData() {
+                try {
+                    const response = await authenticatedFetch(`${API_URL}/api/classrooms/${classroomId}`);
+                    if (!response.ok) throw new Error('Failed to load data');
+
+                    const data = await response.json();
+                    renderOverview(data.classroom, data.students);
+                    renderCharts(data.students);
+                    renderStudents(data.students);
+
+                } catch (error) {
+                    console.error(error);
+                    alert("Failed to load classroom data");
+                }
+            }
+
+            function renderOverview(cls, students) {
+                document.getElementById('className').innerText = cls.name;
+                const code = cls.code;
+                document.getElementById('classCode').innerText = code;
+                document.getElementById('modalClassCode').innerText = code;
+
+                document.getElementById('totalStudents').innerText = students.length;
+
+                const totalSessions = students.reduce((sum, s) => sum + s.total_sessions, 0);
+                document.getElementById('totalSessions').innerText = totalSessions;
+
+                const totalScore = students.reduce((sum, s) => sum + s.avg_focus_score, 0);
+                const validStudents = students.filter(s => s.avg_focus_score > 0).length;
+                const avgScore = validStudents ? Math.round(totalScore / validStudents) : 0;
+
+                document.getElementById('classAvgScore').innerText = avgScore;
+            }
+
+            function renderStudents(students) {
+                currentStudents = students; // Store globally
+                const tbody = document.getElementById('studentsTableBody');
+                tbody.innerHTML = '';
+
+                if (students.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-secondary">No students joined yet. Click "+ Add Student" to invite them.</td></tr>`;
+                    return;
+                }
+
+                students.forEach((s, index) => {
+                    const timeInMins = Math.round(s.total_study_time / 60);
+                    const scoreColor = s.avg_focus_score >= 80 ? 'text-success' : (s.avg_focus_score >= 50 ? 'text-warning' : 'text-danger');
+
+                    const isRep = s.role === 'representative';
+                    const roleBadge = isRep
+                        ? '<span class="badge bg-warning text-dark ms-1" style="font-size:0.7rem">REP</span>'
+                        : '';
+
+                    // Safe strings for other buttons (still using old method for now as they weren't reported broken)
+                    const safeUsername = s.username.replace(/'/g, "\\'");
+
+                    const row = `
+                    <tr>
+                        <td class="p-3">
+                             <div class="d-flex align-items-center gap-2">
+                                <span class="avatar-circle" style="width:32px;height:32px;font-size:0.8rem;">${s.username.charAt(0).toUpperCase()}</span>
+                                <span class="fw-medium">${s.username}</span>
+                                ${roleBadge}
+                             </div>
+                        </td>
+                        <td class="p-3">${s.total_sessions}</td>
+                        <td class="p-3 text-secondary">${timeInMins} min</td>
+                        <td class="p-3 ${scoreColor} fw-bold">${Math.round(s.avg_focus_score)}</td>
+                        <td class="p-3">
+                            ${s.total_sessions > 0 ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'}
+                        </td>
+                        <td class="p-3 text-end">
+                             ${!isRep ? `<button class="btn btn-sm btn-outline-warning me-2" onclick="promoteToRep(${s.student_id}, '${safeUsername}')" title="Make Class Representative">Make Rep</button>` : ''}
+                            <button class="btn btn-sm btn-outline-info me-2" onclick="viewStudentSessions(${index})" title="View Sessions">View Sessions</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="removeStudent(${s.student_id}, '${safeUsername}')" title="Remove Student">Remove</button>
+                        </td>
+                    </tr>
+                `;
+                    tbody.insertAdjacentHTML('beforeend', row);
+                });
+            }
+
+            async function promoteToRep(studentId, username) {
+                if (!confirm(`Make ${username} the Class Representative?`)) return;
+
+                try {
+                    const response = await authenticatedFetch(`${API_URL}/api/classrooms/${classroomId}/students/${studentId}/role`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ role: 'representative' })
+                    });
+
+                    if (!response.ok) throw new Error('Failed to update role');
+
+                    loadClassroomData(); // Reload
+                } catch (error) {
+                    alert('Error updating role');
+                    console.error(error);
+                }
+            }
+
+            async function viewStudentSessions(index) {
+                const student = currentStudents[index];
+                if (!student) {
+                    alert("Error: Student data not found.");
+                    return;
+                }
+                const { student_id: studentId, username } = student;
+
+                document.getElementById('sessionStudentName').innerText = username;
+                const tbody = document.getElementById('sessionsTableBody');
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Loading...</td></tr>';
+
+                try {
+                    const modalEl = document.getElementById('studentSessionsModal');
+                    if (!modalEl) throw new Error("Modal element not found");
+
+                    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    modal.show();
+                } catch (e) {
+                    console.error("Error showing modal:", e);
+                    alert("Error opening modal window: " + e.message);
+                    return;
+                }
+
+                try {
+                    const response = await authenticatedFetch(`${API_URL}/api/classrooms/${classroomId}/students/${studentId}/sessions`);
+                    if (!response.ok) throw new Error('Failed to load sessions');
+
+                    const sessions = await response.json();
+                    tbody.innerHTML = '';
+
+                    if (sessions.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary">No sessions recorded in this classroom.</td></tr>';
+                        return;
+                    }
+
+                    sessions.forEach(session => {
+                        const date = new Date(session.timestamp).toLocaleString();
+                        const durationMatches = session.duration || 0;
+                        const duration = Math.round(durationMatches / 60) + ' min';
+                        const score = Math.round(session.focus_score);
+                        const scoreColor = score >= 80 ? 'text-success' : (score >= 50 ? 'text-warning' : 'text-danger');
+
+                        const row = `
+                        <tr>
+                            <td>${date}</td>
+                            <td>${session.technique || 'None'}</td>
+                            <td>${duration}</td>
+                            <td class="${scoreColor} fw-bold">${score}</td>
+                            <td>${session.user_state}</td>
+                        </tr>
+                    `;
+                        tbody.insertAdjacentHTML('beforeend', row);
+                    });
+
+                } catch (error) {
+                    console.error('Error fetching sessions:', error);
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error loading sessions: ${error.message}</td></tr>`;
+                }
+            }
+
+            async function removeStudent(studentId, username) {
+                if (!confirm(`Are you sure you want to remove ${username} from this classroom?`)) return;
+
+                try {
+                    const response = await authenticatedFetch(`${API_URL}/api/classrooms/${classroomId}/students/${studentId}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (!response.ok) throw new Error('Failed to remove student');
+
+                    loadClassroomData(); // Reload
+                } catch (error) {
+                    alert('Error removing student');
+                }
+            }
+
+            function showAddStudentModal() {
+                const modal = new bootstrap.Modal(document.getElementById('addStudentModal'));
+                modal.show();
+            }
+
+            function renderCharts(students) {
+                // Select chart containers based on persistent layout structure (Row 2 cards)
+                const cards = document.querySelectorAll('.stat-card');
+                if (cards.length < 5) return; // Ensure elements exist
+
+                const perfContainer = cards[3];
+                // For distContainer, it's the inner div of the 5th card.
+                const distCard = cards[4];
+
+                // Let's redefine the no-data state logic to be safer.
+
+                if (students.length === 0) {
+                    perfContainer.innerHTML = '<h5 class="card-title mb-4">Student Focus Performance</h5><p class="text-center text-secondary my-5">No student data available yet.</p>';
+
+                    // For distribution, we want to keep the card title which is in the card, but our distContainer variable previously was the inner div.
+                    // Let's just set the card content.
+                    distCard.innerHTML = '<h5 class="card-title mb-4">Focus Distribution</h5><div style="height: 300px; display: flex; justify-content: center; align-items: center;"><p class="text-secondary">No data</p></div>';
+                    return;
+                }
+
+                // Restore if missing
+                if (!perfContainer.querySelector('#performanceChart')) {
+                    perfContainer.innerHTML = '<h5 class="card-title mb-4">Student Focus Performance</h5><canvas id="performanceChart"></canvas>';
+                }
+
+                if (!distCard.querySelector('#distributionChart')) {
+                    distCard.innerHTML = '<h5 class="card-title mb-4">Focus Distribution</h5><div style="height: 300px; display: flex; justify-content: center; align-items: center;"><canvas id="distributionChart"></canvas></div>';
+                }
+
+                // 1. Performance Chart (Bar)
+                const ctxPerf = document.getElementById('performanceChart');
+
+                // Prepare Data
+                const labels = students.map(s => s.username);
+                const focusScores = students.map(s => Math.round(s.avg_focus_score));
+                const colors = focusScores.map(s => s >= 80 ? '#10b981' : (s >= 50 ? '#f59e0b' : '#ef4444'));
+
+                if (performanceChartInstance) performanceChartInstance.destroy();
+
+                performanceChartInstance = new Chart(ctxPerf.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Avg Focus Score',
+                            data: focusScores,
+                            backgroundColor: colors,
+                            borderColor: colors,
+                            borderWidth: 1,
+                            borderRadius: 6,
+                            barPercentage: 0.6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                grid: { color: '#334155' },
+                                ticks: { color: '#cbd5e1' }
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: '#cbd5e1' }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+
+                // 2. Distribution Chart (Doughnut)
+                const high = students.filter(s => s.avg_focus_score >= 80).length;
+                const med = students.filter(s => s.avg_focus_score >= 50 && s.avg_focus_score < 80).length;
+                const low = students.filter(s => s.avg_focus_score < 50).length;
+
+                const ctxDist = document.getElementById('distributionChart');
+                if (!ctxDist) return;
+
+                if (distributionChartInstance) distributionChartInstance.destroy();
+
+                distributionChartInstance = new Chart(ctxDist.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['High Focus (>80)', 'Medium (50-80)', 'Low (<50)'],
+                        datasets: [{
+                            data: [high, med, low],
+                            backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: '#cbd5e1' }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function copyCode() {
+                const code = document.getElementById('classCode').innerText;
+                navigator.clipboard.writeText(code).then(() => {
+                    const btn = document.querySelector('button[onclick="copyCode()"]');
+                    const originalText = btn.innerText; // might be emoji
+                    // minimal visual feedback via tooltip or just assume it worked as we don't have toast lib set up perfectly
+                    alert("Code copied to clipboard: " + code);
+                });
+            }
+        </script>
+</body>
+
+</html>

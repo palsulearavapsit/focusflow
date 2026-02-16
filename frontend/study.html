@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Study Session - FocusFlow">
+    <title>Study Session (Updated) - FocusFlow</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css?v=6">
+
+    <style>
+        .study-container {
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+
+        .timer-display {
+            font-size: 5rem;
+            font-weight: 800;
+            text-align: center;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 2rem 0;
+            font-family: var(--font-mono);
+        }
+
+        .session-controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 2rem 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: var(--radius-lg);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .camera-preview {
+            width: 100%;
+            max-width: 400px;
+            border-radius: var(--radius-lg);
+            background: var(--bg-tertiary);
+            margin: 0 auto;
+            display: block;
+        }
+
+        .alert-banner {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            max-width: 400px;
+            z-index: 1000;
+            animation: slideInRight 0.3s ease-out;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .session-mode-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-full);
+            background: var(--bg-tertiary);
+            font-weight: 600;
+        }
+
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+
+        .progress-ring-circle {
+            transition: stroke-dashoffset 1s linear;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="layout-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-toggle-btn" onclick="toggleSidebar()">
+                <span>◀</span>
+            </div>
+            <div class="sidebar-header">
+                <a href="#" class="sidebar-brand">FocusFlow</a>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-item">
+                    <a href="student_dashboard.html" class="nav-link">
+                        <span>📊</span>
+                        <span>Dashboard</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="study.html" class="nav-link active">
+                        <span>⏱️</span>
+                        <span>Start Session</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="student_dashboard.html#classroomsList" class="nav-link">
+                        <span>📚</span>
+                        <span>All Classrooms</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="student_manage_classes.html" class="nav-link">
+                        <span>⚙️</span>
+                        <span>Classroom Management</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="games.html" class="nav-link">
+                        <span>🎮</span>
+                        <span>Game Room</span>
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile mb-3">
+                    <div class="avatar-circle" id="userAvatar">S</div>
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Student</div>
+                        <div class="user-role">Student</div>
+                    </div>
+                </div>
+                <button class="btn btn-outline btn-sm w-100" onclick="logout()">Sign Out</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <div class="container-fluid">
+                <!-- Mobile Toggle -->
+                <button class="btn btn-sm btn-secondary d-md-none mb-3" onclick="toggleSidebarMobile()">
+                    ☰ Menu
+                </button>
+
+                <div class="study-container">
+                    <div class="container">
+                        <!-- Header -->
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div>
+                                <h2>Study Session</h2>
+                                <p class="text-secondary mb-0" id="userGreeting"></p>
+                            </div>
+                        </div>
+
+                        <!-- Session Setup (shown before session starts) -->
+                        <div id="sessionSetup" class="card">
+                            <h3 class="mb-4">Start Your Study Session</h3>
+
+                            <div class="form-group mb-3">
+                                <label class="form-label">Select Classroom (Optional)</label>
+                                <select class="form-control form-select" id="classroomSelect">
+                                    <option value="">Personal Study (No Classroom)</option>
+                                </select>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Study Technique</label>
+                                        <select class="form-control form-select" id="techniqueSelect">
+                                            <option value="pomodoro">Pomodoro (25 min study, 5 min break)</option>
+                                            <option value="52-17">52-17 Technique (52 min study, 17 min break)</option>
+                                            <option value="study-sprint">Study Sprint (15 min study, 5 min break)
+                                            </option>
+                                            <option value="flowtime">Flowtime (Flexible duration)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Study Mode</label>
+                                        <select class="form-control form-select" id="modeSelect">
+                                            <option value="screen">Screen Study (Computer/Tablet)</option>
+                                            <option value="book">Book/Notes Study</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="cameraToggle">
+                                    <label class="form-check-label" for="cameraToggle">
+                                        Enable camera monitoring (optional)
+                                    </label>
+                                </div>
+                                <small class="text-muted">
+                                    When enabled, our advanced AI automatically tracks:
+                                    <ul class="mb-0 mt-1 pl-3">
+                                        <li>✅ Face Presence</li>
+                                        <li>✅ Eye Attention</li>
+                                        <li>✅ Focus & Engagement</li>
+                                    </ul>
+                                    <span class="d-block mt-1">🔒 Privacy: No recording, all processing is local.</span>
+                                </small>
+                            </div>
+
+                            <button class="btn btn-primary btn-lg w-100 mt-4" id="startSessionBtn">
+                                Start Study Session
+                            </button>
+                        </div>
+
+                        <!-- Active Session (shown during session) -->
+                        <div id="activeSession" class="hidden">
+                            <!-- Session Info -->
+                            <div class="text-center mb-4">
+                                <span class="session-mode-badge" id="sessionInfo"></span>
+                            </div>
+
+                            <!-- Timer -->
+                            <div class="timer-display" id="timerDisplay">00:00</div>
+
+                            <!-- Session Controls -->
+                            <div class="session-controls">
+                                <button class="btn btn-warning btn-lg" data-bs-toggle="modal"
+                                    data-bs-target="#studyToolsModal">
+                                    🛠️ Study Tools
+                                </button>
+                                <button class="btn btn-danger btn-lg" id="endSessionBtn">
+                                    End Session
+                                </button>
+                                <button class="btn btn-secondary" id="pauseSessionBtn">
+                                    Pause
+                                </button>
+                            </div>
+
+
+
+                            <!-- Live Stats -->
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <div class="stat-value" id="distractionCount">0</div>
+                                    <div class="stat-label">Distractions</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value" id="tabSwitchCount">0</div>
+                                    <div class="stat-label">Tab Switches</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value" id="currentState">Focused</div>
+                                    <div class="stat-label">Current State</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value" id="idleTime">0s</div>
+                                    <div class="stat-label">Idle Time</div>
+                                </div>
+                            </div>
+
+                            <!-- Camera Preview -->
+                            <div id="cameraContainer" class="hidden text-center mt-4">
+                                <h5 class="mb-3">Camera Monitor</h5>
+                                <div id="faceStatusBadge" class="badge bg-secondary mb-2">Initialize
+                                    Camera...</div>
+                                <div style="position: relative; display: inline-block; width: 640px; max-width: 100%;">
+                                    <video id="cameraPreview" class="camera-preview" autoplay muted
+                                        style="width: 100%; height: auto; border-radius: 8px;"></video>
+                                    <canvas id="faceOverlay"
+                                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></canvas>
+                                </div>
+                                <p class="text-muted mt-2">
+                                    <small>🔒 Privacy: No recording, all processing is local</small>
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Session Summary (shown after session ends) -->
+                        <div id="sessionSummary" class="hidden">
+                            <div class="card">
+                                <h3 class="mb-4 text-center">Session Complete! 🎉</h3>
+
+                                <div class="text-center mb-4">
+                                    <div class="stat-value" style="font-size: 4rem;" id="finalFocusScore">--
+                                    </div>
+                                    <div class="stat-label" style="font-size: 1.2rem;">Focus Score
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="stat-card">
+                                            <div class="stat-value" id="summaryDuration">--</div>
+                                            <div class="stat-label">Duration</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="stat-card">
+                                            <div class="stat-value" id="summaryDistractions">--
+                                            </div>
+                                            <div class="stat-label">Distractions</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="stat-card">
+                                            <div class="stat-value" id="summaryState">--</div>
+                                            <div class="stat-label">Final State</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="alert alert-info mt-4" id="recommendationAlert">
+                                    <strong>Recommendation:</strong> <span id="recommendationText">--</span>
+                                </div>
+
+                                <!-- Score Breakdown -->
+                                <div class="mt-4 text-start p-3"
+                                    style="background: var(--bg-tertiary); border-radius: var(--radius-md);">
+                                    <h6 class="mb-3 border-bottom pb-2">Score Breakdown</h6>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>🚫 Distractions (Max 40)</span>
+                                        <span class="bad-text" id="scoreDistractions">--</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>🧠 Consistency (Max 30)</span>
+                                        <span class="text-white" id="scoreConsistency">--</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>📹 Presence/Camera (Max 20)</span>
+                                        <span class="text-white" id="scoreCamera">--</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>🖱️ Activity/Idle (Max 10)</span>
+                                        <span class="text-muted" id="scoreIdle">--</span>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-2 mt-4">
+                                    <button class="btn btn-primary flex-fill" onclick="location.reload()">
+                                        Start New Session
+                                    </button>
+                                    <div id="dashboard-btn-container" class="flex-fill"></div>
+                                </div>
+
+                                <div class="mt-3 text-center">
+                                    <a href="games.html" class="btn btn-outline-warning w-100">
+                                        🎮 Take a Break & Play a Game
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Study Tools Modal (MOVED for better z-index/layout handling) -->
+    <div class="modal fade" id="studyToolsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Study Tools & Resources</h5>
+                    <div class="ms-auto me-3 text-muted small d-none d-md-block">
+                        <i class="bi bi-robot"></i> AI Analysis: NLP Keyword Matching on Video Titles
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="container-fluid h-100">
+                        <div class="row h-100">
+                            <!-- Sidebar for Tools -->
+                            <div class="col-md-2 border-end border-secondary bg-black py-3">
+                                <div class="nav flex-column nav-pills" id="toolTabs" role="tablist">
+                                    <button class="nav-link active text-start mb-2" id="youtube-tab"
+                                        data-bs-toggle="tab" data-bs-target="#youtube-pane" type="button" role="tab">
+                                        📺 YouTube Study
+                                    </button>
+                                    <button class="nav-link text-start" id="notes-tab" data-bs-toggle="tab"
+                                        data-bs-target="#notes-pane" type="button" role="tab">
+                                        📝 PDF Notes
+                                    </button>
+                                </div>
+                                <hr class="border-secondary">
+                                <div class="text-muted small px-2">
+                                    <strong>How AI Works:</strong><br>
+                                    Our backend extracts the video title from YouTube and checks it against a database
+                                    of
+                                    50+ study keywords vs. distraction keywords.
+                                </div>
+                            </div>
+
+                            <!-- Content Area -->
+                            <div class="col-md-10 py-3 h-100 overflow-auto">
+                                <div class="tab-content h-100" id="toolTabsContent">
+                                    <!-- YouTube Pane -->
+                                    <div class="tab-pane fade show active" id="youtube-pane" role="tabpanel">
+                                        <div class="mb-3">
+                                            <label class="form-label">Paste YouTube Link</label>
+                                            <div class="input-group">
+                                                <input type="text"
+                                                    class="form-control bg-dark text-light border-secondary"
+                                                    id="youtubeLinkInput" placeholder="e.g., https://youtu.be/...">
+                                                <button class="btn btn-primary" id="analyzeEmbedBtn">
+                                                    Analyze & Embed
+                                                </button>
+                                            </div>
+                                            <small class="text-muted">
+                                                Our AI analyzes the video title to ensure it's study-related.
+                                            </small>
+                                        </div>
+
+                                        <div id="youtubeAnalysisResult" class="alert d-none mb-3"></div>
+
+                                        <div id="videoContainer"
+                                            class="ratio ratio-16x9 d-none border border-secondary rounded overflow-hidden">
+                                            <iframe id="youtubeEmbedFrame" src="" title="YouTube video"
+                                                allowfullscreen></iframe>
+                                        </div>
+                                    </div>
+
+                                    <!-- Notes Pane -->
+                                    <div class="tab-pane fade" id="notes-pane" role="tabpanel">
+                                        <div class="row">
+                                            <div class="col-md-4 border-end border-secondary">
+                                                <h6 class="mb-3">Notes Archive</h6>
+                                                <div class="list-group list-group-flush overflow-auto"
+                                                    id="notesArchiveList" style="max-height: 300px;">
+                                                    <div class="text-muted small text-center mt-3">No archived notes
+                                                    </div>
+                                                </div>
+                                                <div class="mt-3 pt-3 border-top border-secondary">
+                                                    <label class="btn btn-outline-light w-100">
+                                                        Upload New PDF
+                                                        <input type="file" id="pdfUploadInput" accept="application/pdf"
+                                                            hidden>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <div id="pdfViewerContainer"
+                                                    class="h-100 bg-secondary rounded d-flex align-items-center justify-content-center"
+                                                    style="min-height: 300px;">
+                                                    <div class="text-center text-light opacity-50">
+                                                        <p>Select a note from archive<br>or upload a new PDF</p>
+                                                    </div>
+                                                    <iframe id="pdfFrame" class="w-100 h-100 d-none"
+                                                        style="min-height: 400px;"></iframe>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Container -->
+    <div id="alertBannerContainer"></div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Modules -->
+    <script src="js/auth.js?v=7"></script>
+    <script src="js/camera.js?v=7"></script>
+    <script src="js/face-detection.js?v=7"></script>
+    <script src="js/eye-detection.js?v=7"></script>
+    <script src="js/emotion-detection.js?v=7"></script>
+    <script src="js/distraction.js?v=7"></script>
+    <script src="js/study.js?v=7"></script>
+
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const toggleBtn = sidebar.querySelector('.sidebar-toggle-btn span');
+
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+
+            if (sidebar.classList.contains('collapsed')) {
+                toggleBtn.innerText = "▶";
+            } else {
+                toggleBtn.innerText = "◀";
+            }
+        }
+
+        function toggleSidebarMobile() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('open');
+        }
+    </script>
+</body>
+
+</html>

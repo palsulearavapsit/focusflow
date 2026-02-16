@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin Classrooms - FocusFlow">
+    <title>Manage Classrooms - FocusFlow</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="layout-container">
+        <!-- Sidebar -->
+        <aside class="sidebar admin-sidebar" id="sidebar" style="border-right: 1px solid var(--warning-color);">
+            <div class="sidebar-toggle-btn" onclick="toggleSidebar()">
+                <span>◀</span>
+            </div>
+            <div class="sidebar-header">
+                <a href="#" class="sidebar-brand text-warning">FocusFlow Admin</a>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-item">
+                    <a href="admin.html" class="nav-link">
+                        <span>🛡️</span>
+                        <span>Dashboard</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="admin.html#usersSection" class="nav-link">
+                        <span>👥</span>
+                        <span>User Management</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="admin_classrooms.html" class="nav-link active">
+                        <span>🏫</span>
+                        <span>All Classrooms</span>
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile mb-3">
+                    <div class="avatar-circle bg-warning text-dark" id="userAvatar">A</div>
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Admin</div>
+                        <div class="user-role text-warning">System Admin</div>
+                    </div>
+                </div>
+                <button class="btn btn-outline btn-sm w-100" onclick="logout()">Sign Out</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <div class="container-fluid">
+                <!-- Mobile Toggle -->
+                <button class="btn btn-sm btn-secondary d-md-none mb-3" onclick="toggleSidebarMobile()">
+                    ☰ Menu
+                </button>
+
+                <h1 class="mb-5">Manage Classrooms</h1>
+
+                <!-- Classroom List -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4>All Active Classrooms</h4>
+                        <button class="btn btn-sm btn-primary" onclick="loadClassrooms()">Refresh</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table text-white"
+                                style="--bs-table-bg: transparent; --bs-table-color: var(--text-primary);">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Name</th>
+                                        <th>Code</th>
+                                        <th>Teacher</th>
+                                        <th>Students</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="classroomsTableBody">
+                                    <tr>
+                                        <td colspan="6" class="text-center">Loading classrooms...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Logic -->
+    <script src="js/auth.js?v=2"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!await protectPage('admin')) return;
+
+            const user = getUser();
+            if (user) {
+                document.getElementById('userName').innerText = user.username;
+            }
+
+            loadClassrooms();
+        });
+
+        async function loadClassrooms() {
+            try {
+                const response = await authenticatedFetch(`${API_URL}/api/admin/classrooms`);
+                if (!response.ok) throw new Error('Failed to fetch classrooms');
+
+                const classrooms = await response.json();
+                renderClassrooms(classrooms);
+            } catch (error) {
+                console.error(error);
+                document.getElementById('classroomsTableBody').innerHTML = `
+                    <tr><td colspan="6" class="text-center text-danger">Error loading data</td></tr>
+                `;
+            }
+        }
+
+        function renderClassrooms(classrooms) {
+            const tbody = document.getElementById('classroomsTableBody');
+            tbody.innerHTML = '';
+
+            if (classrooms.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center">No classrooms found</td></tr>`;
+                return;
+            }
+
+            classrooms.forEach(cls => {
+                const row = `
+                    <tr>
+                        <td>#${cls.id}</td>
+                        <td class="fw-bold">${cls.name}</td>
+                        <td><code class="text-info">${cls.code}</code></td>
+                        <td>${cls.teacher_name}</td>
+                        <td>${cls.student_count || 0}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteClassroom(${cls.id}, '${cls.name}')">Delete</button>
+                        </td>
+                    </tr>
+                `;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+
+        async function deleteClassroom(id, name) {
+            if (!confirm(`WARNING: Are you sure you want to delete classroom "${name}"? This will delete ALL data associated with it (sessions, student links).`)) return;
+
+            try {
+                const response = await authenticatedFetch(`${API_URL}/api/admin/classrooms/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) throw new Error('Failed to delete');
+
+                loadClassrooms();
+            } catch (error) {
+                alert('Error deleting classroom');
+            }
+        }
+
+        // Sidebar Toggle Logic
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const toggleBtn = sidebar.querySelector('.sidebar-toggle-btn span');
+
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+
+            if (sidebar.classList.contains('collapsed')) {
+                toggleBtn.innerText = "▶";
+            } else {
+                toggleBtn.innerText = "◀";
+            }
+        }
+
+        function toggleSidebarMobile() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('open');
+        }
+    </script>
+</body>
+
+</html>

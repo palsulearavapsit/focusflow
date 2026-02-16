@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin Dashboard - FocusFlow">
+    <title>Admin - FocusFlow</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+
+    <style>
+        .admin-stat {
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="layout-container">
+        <!-- Sidebar -->
+        <aside class="sidebar admin-sidebar" id="sidebar" style="border-right: 1px solid var(--warning-color);">
+            <div class="sidebar-toggle-btn" onclick="toggleSidebar()">
+                <span>◀</span>
+            </div>
+            <div class="sidebar-header">
+                <a href="#" class="sidebar-brand text-warning">FocusFlow Admin</a>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-item">
+                    <a href="admin.html" class="nav-link active">
+                        <span>🛡️</span>
+                        <span>Dashboard</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="admin.html#usersSection" class="nav-link">
+                        <span>👥</span>
+                        <span>User Management</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="admin_classrooms.html" class="nav-link">
+                        <span>🏫</span>
+                        <span>All Classrooms</span>
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile mb-3">
+                    <div class="avatar-circle bg-warning text-dark" id="userAvatar">A</div>
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Admin</div>
+                        <div class="user-role text-warning">System Admin</div>
+                    </div>
+                </div>
+                <button class="btn btn-outline btn-sm w-100" onclick="logout()">Sign Out</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <div class="container-fluid">
+                <!-- Mobile Toggle -->
+                <button class="btn btn-sm btn-secondary d-md-none mb-3" onclick="toggleSidebarMobile()">
+                    ☰ Menu
+                </button>
+
+                <h1 class="mb-5">System Overview</h1>
+
+                <!-- System Stats -->
+                <div class="row mb-5">
+                    <div class="col-md-3">
+                        <div class="card p-3 admin-stat">
+                            <h5 class="text-secondary">Total Users</h5>
+                            <h2 class="mb-0" id="totalStudents">--</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 admin-stat">
+                            <h5 class="text-secondary">Total Sessions</h5>
+                            <h2 class="mb-0" id="totalSessions">--</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 admin-stat">
+                            <h5 class="text-secondary">Global Avg Score</h5>
+                            <h2 class="mb-0 text-primary" id="globalAvgScore">--</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 admin-stat">
+                            <h5 class="text-secondary">Active Cameras</h5>
+                            <h2 class="mb-0 text-success" id="activeCameras">--</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5>Most Popular Techniques</h5>
+                            </div>
+                            <div class="card-body d-flex align-items-center justify-content-center">
+                                <h3 class="text-primary" id="popularTechnique">--</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5>Top Study Mode</h5>
+                            </div>
+                            <div class="card-body d-flex align-items-center justify-content-center">
+                                <h3 class="text-info" id="popularMode">--</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Management -->
+                <div class="card" id="usersSection">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">User Management</h4>
+                        <div class="d-flex gap-2">
+                            <input type="text" id="userSearch" class="form-control form-control-sm"
+                                placeholder="Search users..." style="width: 200px;">
+                            <button class="btn btn-sm btn-primary" onclick="showCreateUserModal()">+ Add User</button>
+                            <button class="btn btn-sm btn-secondary" onclick="loadUsers()">Refresh</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table text-white"
+                                style="--bs-table-bg: transparent; --bs-table-color: var(--text-primary);">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Username</th>
+                                        <th>Email</th>
+                                        <th>Role</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody">
+                                    <tr>
+                                        <td colspan="5" class="text-center">Loading users...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Create User Modal -->
+    <div class="modal fade" id="createUserModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content" style="background-color: var(--bg-card); color: var(--text-primary);">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Create New User</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createUserForm">
+                        <div class="mb-3">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control" id="newUsername" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="newEmail" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <input type="password" class="form-control" id="newPassword" required minlength="6">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Role</label>
+                            <select class="form-select" id="newRole">
+                                <option value="student">Student</option>
+                                <option value="teacher">Teacher</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Create User</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Stats Modal -->
+    <div class="modal fade" id="userStatsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" style="background-color: var(--bg-card); color: var(--text-primary);">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">User Statistics</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="userStatsContent" class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Logic -->
+    <script src="js/auth.js?v=5"></script>
+    <script src="js/admin.js?v=5"></script>
+</body>
+
+</html>

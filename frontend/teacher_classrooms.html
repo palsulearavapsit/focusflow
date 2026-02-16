@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="My Classrooms - FocusFlow">
+    <title>My Classrooms - FocusFlow</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css?v=5">
+
+    <style>
+        .classroom-card {
+            background: var(--bg-card);
+            border: 1px solid var(--bg-tertiary);
+            border-radius: var(--radius-lg);
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .classroom-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-color);
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .delete-btn:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="layout-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-toggle-btn" onclick="toggleSidebar()">
+                <span>◀</span>
+            </div>
+            <div class="sidebar-header">
+                <a href="#" class="sidebar-brand">FocusFlow</a>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-item">
+                    <a href="teacher_dashboard.html" class="nav-link">
+                        <span>📊</span>
+                        <span>Dashboard</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="teacher_classrooms.html" class="nav-link active">
+                        <span>🏫</span>
+                        <span>My Classrooms</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="teacher_students.html" class="nav-link">
+                        <span>👥</span>
+                        <span>My Students</span>
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile mb-3">
+                    <div class="avatar-circle" id="userAvatar">T</div>
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Teacher</div>
+                        <div class="user-role">Teacher</div>
+                    </div>
+                </div>
+                <button class="btn btn-outline btn-sm w-100" onclick="logout()">Sign Out</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <div class="container-fluid">
+                <!-- Mobile Toggle -->
+                <button class="btn btn-sm btn-secondary d-md-none mb-3" onclick="toggleSidebarMobile()">
+                    ☰ Menu
+                </button>
+                <!-- Header Section -->
+                <div class="d-flex justify-content-between align-items-center mb-5">
+                    <div>
+                        <h1 class="mb-2">My Classrooms</h1>
+                        <p class="text-secondary mb-0">Manage your classes and view student progress.</p>
+                    </div>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createClassroomModal">
+                        <span>+ Create Classroom</span>
+                    </button>
+                </div>
+
+                <!-- Classrooms Grid -->
+                <div class="row g-4" id="classroomsGrid">
+                    <div class="col-12 text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Create Classroom Modal -->
+    <div class="modal fade" id="createClassroomModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content" style="background-color: var(--bg-card); color: var(--text-primary);">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Create New Classroom</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createClassroomForm">
+                        <div class="mb-3">
+                            <label for="className" class="form-label">Classroom Name</label>
+                            <input type="text" class="form-control" id="className" required minlength="3"
+                                maxlength="100" placeholder="e.g. Grade 10 Math">
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Create Classroom</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Logic -->
+    <script src="js/auth.js?v=5"></script>
+    <script>
+        // Teacher Logic
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!await protectPage('teacher')) return;
+
+            // Set user info
+            const user = getUser();
+            if (user) {
+                document.getElementById('userName').innerText = user.username;
+                document.getElementById('userAvatar').innerText = user.username.charAt(0).toUpperCase();
+            }
+
+            loadClassrooms();
+        });
+
+        async function loadClassrooms() {
+            try {
+                const response = await authenticatedFetch(`${API_URL}/api/classrooms/teacher/list`);
+                if (!response.ok) throw new Error('Failed to load classrooms');
+
+                const classrooms = await response.json();
+                renderClassrooms(classrooms);
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('classroomsGrid').innerHTML = `<p class="text-danger text-center">Failed to load classrooms.</p>`;
+            }
+        }
+
+        function renderClassrooms(classrooms) {
+            const grid = document.getElementById('classroomsGrid');
+            grid.innerHTML = '';
+
+            if (classrooms.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-12 text-center text-secondary py-5">
+                        <h4>No classrooms yet</h4>
+                        <p>Create your first classroom to get started!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            classrooms.forEach(cls => {
+                const card = `
+                    <div class="col-md-4">
+                        <div class="card classroom-card h-100 p-4">
+                             <button class="btn btn-sm btn-danger delete-btn" onclick="deleteClassroom(${cls.id}, '${cls.name}')" title="Delete Classroom">×</button>
+                            
+                            <div class="d-flex justify-content-between align-items-start mb-3 mt-2">
+                                <h3 class="mb-0 text-white">${cls.name}</h3>
+                            </div>
+                            
+                            <div class="mb-2">
+                                <span class="badge bg-secondary mb-3">${cls.student_count || 0} Students</span>
+                            </div>
+
+                            <div class="mb-4">
+                                <small class="text-secondary text-uppercase fw-bold" style="font-size: 0.7rem;">Class Code</small>
+                                <div class="d-flex align-items-center gap-2 mt-1">
+                                    <code class="fs-4 text-primary bg-dark px-2 rounded">${cls.code}</code>
+                                </div>
+                            </div>
+                            <div class="mt-auto">
+                                <a href="classroom_stats.html?id=${cls.id}" class="btn btn-outline-primary w-100">
+                                    View Dashboard
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.insertAdjacentHTML('beforeend', card);
+            });
+        }
+
+        async function deleteClassroom(id, name) {
+            if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) return;
+
+            try {
+                const response = await authenticatedFetch(`${API_URL}/api/classrooms/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) throw new Error('Failed to delete');
+
+                loadClassrooms(); // Reload list
+            } catch (error) {
+                alert('Error deleting classroom');
+            }
+        }
+
+        // Handle Create Form
+        document.getElementById('createClassroomForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('className').value;
+
+            try {
+                const response = await authenticatedFetch(`${API_URL}/api/classrooms/create`, {
+                    method: 'POST',
+                    body: JSON.stringify({ name })
+                });
+
+                if (!response.ok) throw new Error('Failed to create');
+
+                // Close modal and reload
+                const modal = bootstrap.Modal.getInstance(document.getElementById('createClassroomModal'));
+                modal.hide();
+                document.getElementById('className').value = '';
+                loadClassrooms();
+
+            } catch (error) {
+                alert('Error creating classroom');
+            }
+        });
+
+        // Sidebar Toggle Logic
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const toggleBtn = sidebar.querySelector('.sidebar-toggle-btn span');
+
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+
+            if (sidebar.classList.contains('collapsed')) {
+                toggleBtn.innerText = "▶";
+            } else {
+                toggleBtn.innerText = "◀";
+            }
+        }
+
+        function toggleSidebarMobile() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('open');
+        }
+    </script>
+</body>
+
+</html>
