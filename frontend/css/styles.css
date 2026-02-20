@@ -795,11 +795,120 @@ li {
     width: 80px;
 }
 
-.sidebar.collapsed .sidebar-brand {
-    font-size: 0.8rem;
+@media (min-width: 769px) {
+    .sidebar.collapsed+.main-content {
+        margin-left: 80px;
+        width: calc(100% - 80px);
+    }
+}
+
+/* ===== STUDY TOOLS SIDE PANEL (New) ===== */
+#studyToolsPanel {
+    position: fixed;
+    top: 0;
+    right: -45vw;
+    /* Hidden by default */
+    width: 45vw;
+    height: 100vh;
+    background: var(--bg-card);
+    border-left: 1px solid var(--bg-tertiary);
+    box-shadow: var(--shadow-xl);
+    z-index: 1050;
+    /* Above navbar but below modals if any */
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Adjust Main Content when Tools Open */
+body.tools-panel-open .main-content {
+    margin-right: 45vw;
+    width: auto !important;
+    /* Let flex/grid handle width */
+    transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.main-content {
+    transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#studyToolsPanel.open {
+    right: 0;
+}
+
+.tools-header {
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--bg-tertiary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-secondary);
+}
+
+.tools-body {
+    flex: 1;
+    display: flex;
     overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    min-height: 0;
+    /* Internal scrolling */
+}
+
+.tools-nav {
+    width: 200px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--bg-tertiary);
+    overflow-y: auto;
+    padding: var(--spacing-md) 0;
+    flex-shrink: 0;
+}
+
+.tools-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-lg);
+    background: var(--bg-primary);
+}
+
+.tool-nav-item {
+    padding: var(--spacing-sm) var(--spacing-md);
+    cursor: pointer;
+    color: var(--text-secondary);
+    border-left: 3px solid transparent;
+    transition: all 0.2s;
+}
+
+.tool-nav-item:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.tool-nav-item.active {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--primary-color);
+    border-left-color: var(--primary-color);
+}
+
+.tool-pane {
+    display: none;
+    animation: fadeIn 0.3s;
+}
+
+.tool-pane.active {
+    display: block;
+}
+
+/* Responsive Panel */
+@media (max-width: 768px) {
+    #studyToolsPanel {
+        width: 100vw;
+        right: -100vw;
+        z-index: 2000;
+        /* Higher than sidebar on mobile */
+    }
+
+    body.tools-panel-open .main-content {
+        margin-right: 0 !important;
+    }
 }
 
 .sidebar.collapsed .user-info,

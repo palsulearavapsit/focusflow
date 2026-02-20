@@ -82,6 +82,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Initialize Study Tools
     initializeStudyTools();
+
+    // Check URL Params for Shortcuts
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('mode') === 'group') {
+        const modeSelect = document.getElementById('modeSelect');
+        if (modeSelect) modeSelect.value = 'group';
+    }
 });
 
 // --- Study Tools Logic ---
@@ -146,13 +153,16 @@ async function analyzeYouTubeVideo() {
                 Reason: ${data.reason}
             `;
 
-            // Embed Video
-            const videoId = extractVideoId(url);
+            // Embed Video - Use backend ID first, fallback to frontend
+            const videoId = data.video_id || extractVideoId(url);
+
             if (videoId) {
+                console.log("Embedding Video ID:", videoId);
                 iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
                 container.classList.remove('d-none');
             } else {
-                alert("Could not extract video ID");
+                console.error("Could not determine video ID from", url);
+                alert("Could not extract video ID for embedding.");
             }
         } else {
             resultDiv.className = 'alert alert-danger';
@@ -343,6 +353,17 @@ async function startSession() {
         // Update UI
         updateUIForSessionStart();
 
+        // Enforce Fullscreen for Screen Mode
+        if (studyMode === 'screen' && document.documentElement.requestFullscreen) {
+            try {
+                // Must be triggered by user activation, which the click on Start button provides
+                await document.documentElement.requestFullscreen();
+            } catch (fsErr) {
+                console.warn("Fullscreen request failed", fsErr);
+                showAlert("Please enable fullscreen manually for strict mode.", "warning");
+            }
+        }
+
         // Start Timer
         startTimer();
 
@@ -414,17 +435,54 @@ function startMonitoring() {
     }
 
     // Periodically update session state from modules
-    setInterval(() => {
+    setInterval(async () => {
         if (!sessionState.active || sessionState.paused) return;
 
         if (typeof getDistractionMetrics === 'function') {
             const metrics = getDistractionMetrics();
             sessionState.distractions = metrics.distractionCount;
             sessionState.tabSwitches = metrics.tabSwitches;
+
+            // Restore idle metrics
             sessionState.mouseInactiveTime = metrics.mouseInactiveTime;
             sessionState.keyboardInactiveTime = metrics.keyboardInactiveTime;
-            sessionState.idleTime = metrics.mouseInactiveTime / 1000; // rough estimate
+            sessionState.idleTime = metrics.mouseInactiveTime / 1000;
+
+            // Sync current state
             sessionState.currentState = metrics.currentState;
+        }
+
+        // Peer Room Logic (Every 5 seconds)
+        if (sessionState.studyMode === 'group' && sessionState.duration % 5 === 0) {
+            try {
+                // Mock participants for now (single user room)
+                const response = await authenticatedFetch(`${API_URL}/api/ml/study-room-moderator`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        total_participants: 1,
+                        current_participant_focus_score: 80, // Mock
+                        average_room_focus_score: 75, // Mock
+                        mic_status: "OFF",
+                        camera_status: sessionState.cameraEnabled ? "ON" : "OFF",
+                        fullscreen_status: document.fullscreenElement ? "ACTIVE" : "INACTIVE",
+                        distraction_events_last_5_min: 0,
+                        lock_mode_violations: violationCount,
+                        session_time_remaining_minutes: 25 - (sessionState.duration / 60)
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.room_message) {
+                        showAlert(`📢 Room Message: ${data.room_message}`, 'info');
+                    }
+                    if (data.private_message) {
+                        showAlert(`🔒 Private Notice: ${data.private_message}`, 'warning');
+                    }
+                }
+            } catch (e) {
+                console.warn("Moderator sync failed", e);
+            }
         }
     }, 1000);
 }
@@ -632,11 +690,89 @@ function showAlert(msg, type = 'info') {
     setTimeout(() => div.remove(), 3000);
 }
 
+// Fullscreen Logic
+function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+            console.error(`Error attempting to enable fullscreen: ${err.message}`);
+        });
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+}
+
+document.addEventListener('fullscreenchange', () => {
+    const isFullscreen = !!document.fullscreenElement;
+    const btn = document.getElementById('fullscreenBtn');
+    if (btn) {
+        btn.innerHTML = isFullscreen ? '↙ Exit Fullscreen' : '⛶ Fullscreen';
+        btn.classList.toggle('btn-info', !isFullscreen);
+        btn.classList.toggle('btn-outline-info', isFullscreen);
+    }
+
+    // Check violation if session active and mode is screen
+    if (sessionState.active && !sessionState.paused && sessionState.studyMode === 'screen') {
+        if (!isFullscreen) {
+            handleFullscreenViolation();
+        } else {
+            // Cleared
+            const warningEl = document.getElementById('fullscreenWarning');
+            if (warningEl) warningEl.classList.add('hidden');
+        }
+    }
+});
+
+let violationCount = 0;
+let lastViolationTime = 0;
+
+async function handleFullscreenViolation() {
+    const now = Date.now();
+    violationCount++;
+    const timeSinceLast = (now - lastViolationTime) / 1000;
+    lastViolationTime = now;
+
+    // Show immediate local warning
+    const warningEl = document.getElementById('fullscreenWarning');
+    const warningText = document.getElementById('fullscreenWarningText');
+    if (warningEl) {
+        warningEl.classList.remove('hidden');
+        warningText.innerText = `Violation #${violationCount}: Please return to fullscreen!`;
+    }
+
+    try {
+        const response = await authenticatedFetch(`${API_URL}/api/ml/fullscreen-violation`, {
+            method: 'POST',
+            body: JSON.stringify({
+                session_duration_minutes: sessionState.duration / 60,
+                violation_count: violationCount,
+                last_violation_type: "EXIT_FULLSCREEN",
+                time_since_last_violation_seconds: timeSinceLast,
+                current_focus_score: 100 // Placeholder
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+
+            // Update Warning Text based on backend response
+            const warningText = document.getElementById('fullscreenWarningText');
+            if (warningText) {
+                warningText.innerHTML = `<strong>${data.action.replace('_', ' ')}</strong><br>${data.message_to_user}`;
+            }
+
+            if (data.action === "END_SESSION") {
+                alert("Session ended due to repeated fullscreen violations.");
+                endSession();
+            }
+        }
+    } catch (e) {
+        console.error("Error reporting violation:", e);
+    }
+}
+
 function playNotificationSound() {
-    // Simple beep using AudioContext or HTML5 Audio
-    // For now, simple console log as per "No sound alerts" requirement in prompt?
-    // Wait, prompt said "No sound alerts" for DISTRACTIONS. Timer end usually has sound.
-    // I will respect "No sound alerts" strictly just in case.
     console.log("Notification: Timer finished");
 }
 

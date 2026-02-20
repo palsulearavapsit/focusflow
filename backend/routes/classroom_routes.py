@@ -200,47 +200,6 @@ async def list_student_classrooms(
         )
 
 
-@router.get("/{classroom_id}", response_model=ClassroomDetailsResponse)
-async def get_classroom_details(
-    classroom_id: int,
-    current_user: dict = Depends(get_current_teacher)
-):
-    """
-    Get detailed classroom stats
-    
-    **Teacher only** (Must be the owner of the classroom)
-    """
-    try:
-        classroom = db.get_classroom_by_id(classroom_id)
-        
-        if not classroom:
-            raise HTTPException(status_code=404, detail="Classroom not found")
-            
-        if classroom['teacher_id'] != current_user['id']:
-            raise HTTPException(status_code=403, detail="Not authorized to view this classroom")
-            
-        students_stats = db.get_classroom_students_stats(classroom_id)
-        
-        # Clean up stats (convert decimal to float/int if needed)
-        # Assuming schema handles it via Pydantic magic, but explicit conversion is safer if DB returns strings/decimals
-        
-        return ClassroomDetailsResponse(
-            classroom=ClassroomResponse(**classroom),
-            students=students_stats
-        )
-        
-
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Get classroom details error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve classroom details"
-        )
-
-
 @router.get("/{classroom_id}/students/{student_id}/sessions")
 async def get_classroom_student_sessions(
     classroom_id: int,
@@ -273,6 +232,42 @@ async def get_classroom_student_sessions(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve student sessions"
+        )
+
+
+@router.get("/{classroom_id}", response_model=ClassroomDetailsResponse)
+async def get_classroom_details(
+    classroom_id: int,
+    current_user: dict = Depends(get_current_teacher)
+):
+    """
+    Get detailed classroom stats
+    
+    **Teacher only** (Must be the owner of the classroom)
+    """
+    try:
+        classroom = db.get_classroom_by_id(classroom_id)
+        
+        if not classroom:
+            raise HTTPException(status_code=404, detail="Classroom not found")
+            
+        if classroom['teacher_id'] != current_user['id']:
+            raise HTTPException(status_code=403, detail="Not authorized to view this classroom")
+            
+        students_stats = db.get_classroom_students_stats(classroom_id)
+        
+        return ClassroomDetailsResponse(
+            classroom=ClassroomResponse(**classroom),
+            students=students_stats
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Get classroom details error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve classroom details"
         )
 
 

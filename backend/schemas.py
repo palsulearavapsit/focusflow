@@ -29,6 +29,7 @@ class StudyMode(str, Enum):
     """Study mode enumeration"""
     SCREEN = "screen"
     BOOK = "book"
+    GROUP = "group"
 
 
 class UserState(str, Enum):
@@ -88,6 +89,13 @@ class SessionEndRequest(BaseModel):
     dominant_emotion: str = Field(default="UNKNOWN")  # Phase-2
     emotion_confidence: float = Field(default=0.0, ge=0.0, le=1.0)  # Phase-2
     user_state: UserState = UserState.FOCUSED
+    
+    # Advanced Focus Metrics (Optional - calculated if provided)
+    sustained_attention_minutes: Optional[float] = Field(default=None, ge=0)
+    sustained_distraction_minutes: Optional[float] = Field(default=None, ge=0)
+    distraction_events: Optional[int] = Field(default=None, ge=0)
+    avg_recovery_time_seconds: Optional[float] = Field(default=None, ge=0)
+    emotion_stability_ratio: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
 
 # Response Models
@@ -154,6 +162,11 @@ class SessionSummaryResponse(BaseModel):
     tab_switches: int
     camera_absence_minutes: int
     face_absence_minutes: int  # Phase-2
+    
+    # Advanced Analytics
+    analysis: Optional[str] = None
+    strength: Optional[str] = None
+    improvement_area: Optional[str] = None
 
 
 class AdminStatisticsResponse(BaseModel):
@@ -311,3 +324,107 @@ class UpdateRoleRequest(BaseModel):
 class UserSystemRoleUpdate(BaseModel):
     """Request to update a user's system role (admin)"""
     role: UserRole
+
+
+class DistractionAlertRequest(BaseModel):
+    """Request model for evaluating distraction alerts"""
+    session_duration_minutes: float
+    gaze_away_duration_30s: float
+    face_absence_duration_30s: float
+    head_turned_duration: float
+    distraction_events_last_5_min: int
+    avg_recovery_time_seconds: float
+    current_focus_score: float
+
+class DistractionAlertResponse(BaseModel):
+    """Response model for distraction alert evaluation"""
+    alert_type: str
+    reason: str
+    message_to_user: str
+
+
+class FullscreenViolationType(str, Enum):
+    """Type of fullscreen violation"""
+    TAB_SWITCH = "TAB_SWITCH"
+    FULLSCREEN_EXIT = "FULLSCREEN_EXIT"
+    WINDOW_BLUR = "WINDOW_BLUR"
+
+
+class FullscreenViolationRequest(BaseModel):
+    """Request model for checking fullscreen violations"""
+    session_duration_minutes: float
+    time_remaining_minutes: Optional[float] = None
+    violation_count: int
+    last_violation_type: FullscreenViolationType
+    time_since_last_violation_seconds: float
+    current_focus_score: float
+
+
+class FullscreenViolationResponse(BaseModel):
+    """Response model for fullscreen violation policy decision"""
+    action: str  # SOFT_WARNING, STRONG_WARNING, APPLY_SCORE_PENALTY, END_SESSION
+    penalty_percentage: float
+    reason: str
+    message_to_user: str
+
+
+class StudyRoomAction(str, Enum):
+    NO_ACTION = "NO_ACTION"
+    SOFT_NOTICE = "SOFT_NOTICE"
+    WARNING = "WARNING"
+    APPLY_SCORE_PENALTY = "APPLY_SCORE_PENALTY"
+    TEMPORARY_MUTE = "TEMPORARY_MUTE"
+    SUGGEST_GROUP_BREAK = "SUGGEST_GROUP_BREAK"
+    REMOVE_FROM_ROOM = "REMOVE_FROM_ROOM"
+
+
+class StudyRoomModerationRequest(BaseModel):
+    """Request model for study room moderator evaluation"""
+    total_participants: int = Field(default=1, ge=1)
+    current_participant_focus_score: float = Field(..., ge=0, le=100)
+    average_room_focus_score: float = Field(..., ge=0, le=100)
+    mic_status: Literal["ON", "OFF"]
+    camera_status: Literal["ON", "OFF"]
+    fullscreen_status: Literal["ACTIVE", "INACTIVE"]
+    distraction_events_last_5_min: int = Field(default=0, ge=0)
+    lock_mode_violations: int = Field(default=0, ge=0)
+    session_time_remaining_minutes: float = Field(default=0.0)
+
+
+class StudyRoomModerationResponse(BaseModel):
+    """Response model for study room moderator decision"""
+    action: StudyRoomAction
+    penalty_percentage: float = 0.0
+    private_message: Optional[str] = None
+    room_message: Optional[str] = None
+    reason: str
+
+# Cognitive Performance Engine Models
+class GameType(str, Enum):
+    STROOP = "Stroop Test"
+    REACTION = "Reaction Time Click"
+    RECALL = "Number Recall"
+    BREATHING = "Breathing Exercises"
+
+class CognitiveState(str, Enum):
+    FATIGUED = "FATIGUED"
+    STABLE = "STABLE"
+    REFRESHED = "REFRESHED"
+
+class RecommendedAction(str, Enum):
+    RETURN = "RETURN_TO_STUDY"
+    EXTEND = "EXTEND_BREAK_2_MIN"
+    BREATHE = "SUGGEST_DEEP_BREATHING"
+
+class CognitiveAnalysisRequest(BaseModel):
+    game_type: GameType
+    current_metrics: dict
+    previous_metrics: Optional[dict] = None
+    focus_score: float = Field(..., ge=0, le=100)
+
+class CognitiveAnalysisResponse(BaseModel):
+    cognitive_refresh_score: float
+    cognitive_state: CognitiveState
+    recommended_action: RecommendedAction
+    analysis: str
+    motivation_message: str

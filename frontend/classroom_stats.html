@@ -186,137 +186,119 @@
                         <code class="fs-4 text-primary flex-grow-1 text-center" id="modalClassCode">...</code>
                         <button class="btn btn-sm btn-outline-primary" onclick="copyCode()">Copy</button>
                     </div>
-
-                    <!-- 
-                    <hr class="border-secondary my-4">
-                    <p class="text-secondary small">Or add manually (Future Feature)</p>
-                     -->
                 </div>
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
-        <!-- Student Sessions Modal -->
-        <div class="modal fade" id="studentSessionsModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content" style="background-color: var(--bg-card); color: var(--text-primary);">
-                    <div class="modal-header border-secondary">
-                        <h5 class="modal-title">Sessions: <span id="sessionStudentName"></span></h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                            aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover text-white mb-0"
-                                style="--bs-table-bg: transparent; --bs-table-color: var(--text-primary); --bs-table-hover-bg: var(--bg-hover);">
-                                <thead style="border-bottom: 1px solid var(--bg-tertiary);">
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Technique</th>
-                                        <th>Duration</th>
-                                        <th>Focus Score</th>
-                                        <th>State</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="sessionsTableBody">
-                                    <!-- Sessions will be loaded here -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="modal-footer border-secondary">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    </div>
+    </div>
+
+    <!-- Student Sessions Modal (MUST be outside addStudentModal) -->
+    <div class="modal fade" id="studentSessionsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm" style="max-width: 460px;">
+            <div class="modal-content"
+                style="background-color: #1e2433; color: var(--text-primary); border: 1px solid #2d3748; border-radius: 12px;">
+                <!-- Header -->
+                <div class="modal-header" style="border-bottom: 1px solid #2d3748; padding: 18px 22px;">
+                    <h5 class="modal-title fw-bold" style="font-size: 1.05rem;">User Statistics</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <!-- Stats Body -->
+                <div class="modal-body" id="statsModalBody" style="padding: 28px 24px;">
+                    <!-- injected by JS -->
+                    <div class="text-center text-secondary py-4">Loading...</div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Bootstrap JS -->
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-        <script src="js/auth.js?v=2"></script>
-        <script>
-            const urlParams = new URLSearchParams(window.location.search);
-            const classroomId = urlParams.get('id');
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/auth.js?v=2"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const classroomId = urlParams.get('id');
 
-            document.addEventListener('DOMContentLoaded', async () => {
-                if (!await protectPage('teacher')) return;
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!await protectPage('teacher')) return;
 
-                // Set user info
-                const user = getUser();
-                if (user) {
-                    document.getElementById('userName').innerText = user.username;
-                    document.getElementById('userAvatar').innerText = user.username.charAt(0).toUpperCase();
-                }
-
-                if (!classroomId) {
-                    window.location.href = 'teacher_dashboard.html';
-                    return;
-                }
-                loadClassroomData();
-            });
-
-            let currentStudents = [];
-            let performanceChartInstance = null;
-            let distributionChartInstance = null;
-
-            async function loadClassroomData() {
-                try {
-                    const response = await authenticatedFetch(`${API_URL}/api/classrooms/${classroomId}`);
-                    if (!response.ok) throw new Error('Failed to load data');
-
-                    const data = await response.json();
-                    renderOverview(data.classroom, data.students);
-                    renderCharts(data.students);
-                    renderStudents(data.students);
-
-                } catch (error) {
-                    console.error(error);
-                    alert("Failed to load classroom data");
-                }
+            // Set user info
+            const user = getUser();
+            if (user) {
+                document.getElementById('userName').innerText = user.username;
+                document.getElementById('userAvatar').innerText = user.username.charAt(0).toUpperCase();
             }
 
-            function renderOverview(cls, students) {
-                document.getElementById('className').innerText = cls.name;
-                const code = cls.code;
-                document.getElementById('classCode').innerText = code;
-                document.getElementById('modalClassCode').innerText = code;
+            if (!classroomId) {
+                window.location.href = 'teacher_dashboard.html';
+                return;
+            }
+            loadClassroomData();
+        });
 
-                document.getElementById('totalStudents').innerText = students.length;
+        let currentStudents = [];
+        let performanceChartInstance = null;
+        let distributionChartInstance = null;
 
-                const totalSessions = students.reduce((sum, s) => sum + s.total_sessions, 0);
-                document.getElementById('totalSessions').innerText = totalSessions;
+        async function loadClassroomData() {
+            try {
+                const response = await authenticatedFetch(`${API_URL}/api/classrooms/${classroomId}`);
+                if (!response.ok) throw new Error('Failed to load data');
 
-                const totalScore = students.reduce((sum, s) => sum + s.avg_focus_score, 0);
-                const validStudents = students.filter(s => s.avg_focus_score > 0).length;
-                const avgScore = validStudents ? Math.round(totalScore / validStudents) : 0;
+                const data = await response.json();
+                renderOverview(data.classroom, data.students);
+                renderCharts(data.students);
+                renderStudents(data.students);
 
-                document.getElementById('classAvgScore').innerText = avgScore;
+            } catch (error) {
+                console.error(error);
+                alert("Failed to load classroom data");
+            }
+        }
+
+        function renderOverview(cls, students) {
+            document.getElementById('className').innerText = cls.name;
+            const code = cls.code;
+            document.getElementById('classCode').innerText = code;
+            document.getElementById('modalClassCode').innerText = code;
+
+            document.getElementById('totalStudents').innerText = students.length;
+
+            const totalSessions = students.reduce((sum, s) => sum + s.total_sessions, 0);
+            document.getElementById('totalSessions').innerText = totalSessions;
+
+            const totalScore = students.reduce((sum, s) => sum + s.avg_focus_score, 0);
+            const validStudents = students.filter(s => s.avg_focus_score > 0).length;
+            const avgScore = validStudents ? Math.round(totalScore / validStudents) : 0;
+
+            document.getElementById('classAvgScore').innerText = avgScore;
+        }
+
+        function renderStudents(students) {
+            currentStudents = students; // Store globally
+            const tbody = document.getElementById('studentsTableBody');
+            tbody.innerHTML = '';
+
+            if (students.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-secondary">No students joined yet. Click "+ Add Student" to invite them.</td></tr>`;
+                return;
             }
 
-            function renderStudents(students) {
-                currentStudents = students; // Store globally
-                const tbody = document.getElementById('studentsTableBody');
-                tbody.innerHTML = '';
+            students.forEach((s, index) => {
+                const timeInMins = Math.round(s.total_study_time / 60);
+                const scoreColor = s.avg_focus_score >= 80 ? 'text-success' : (s.avg_focus_score >= 50 ? 'text-warning' : 'text-danger');
 
-                if (students.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-secondary">No students joined yet. Click "+ Add Student" to invite them.</td></tr>`;
-                    return;
-                }
+                const isRep = s.role === 'representative';
+                const roleBadge = isRep
+                    ? '<span class="badge bg-warning text-dark ms-1" style="font-size:0.7rem">REP</span>'
+                    : '';
 
-                students.forEach((s, index) => {
-                    const timeInMins = Math.round(s.total_study_time / 60);
-                    const scoreColor = s.avg_focus_score >= 80 ? 'text-success' : (s.avg_focus_score >= 50 ? 'text-warning' : 'text-danger');
+                // Safe strings for other buttons (still using old method for now as they weren't reported broken)
+                const safeUsername = s.username.replace(/'/g, "\\'");
 
-                    const isRep = s.role === 'representative';
-                    const roleBadge = isRep
-                        ? '<span class="badge bg-warning text-dark ms-1" style="font-size:0.7rem">REP</span>'
-                        : '';
-
-                    // Safe strings for other buttons (still using old method for now as they weren't reported broken)
-                    const safeUsername = s.username.replace(/'/g, "\\'");
-
-                    const row = `
+                const row = `
                     <tr>
                         <td class="p-3">
                              <div class="d-flex align-items-center gap-2">
@@ -338,227 +320,260 @@
                         </td>
                     </tr>
                 `;
-                    tbody.insertAdjacentHTML('beforeend', row);
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+
+        async function promoteToRep(studentId, username) {
+            if (!confirm(`Make ${username} the Class Representative?`)) return;
+
+            try {
+                const response = await authenticatedFetch(`${API_URL}/api/classrooms/${classroomId}/students/${studentId}/role`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: 'representative' })
                 });
+
+                if (!response.ok) throw new Error('Failed to update role');
+
+                loadClassroomData(); // Reload
+            } catch (error) {
+                alert('Error updating role');
+                console.error(error);
+            }
+        }
+
+        async function viewStudentSessions(index) {
+            const student = currentStudents[index];
+            if (!student) { alert("Error: Student data not found."); return; }
+            const { student_id: studentId, username } = student;
+
+            // Show modal immediately with loading state
+            const statsBody = document.getElementById('statsModalBody');
+            statsBody.innerHTML = '<div class="text-center text-secondary py-4"><div class="spinner-border spinner-border-sm me-2"></div>Loading...</div>';
+
+            try {
+                const modalEl = document.getElementById('studentSessionsModal');
+                if (!modalEl) throw new Error("Modal element not found");
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            } catch (e) {
+                alert("Error opening modal: " + e.message);
+                return;
             }
 
-            async function promoteToRep(studentId, username) {
-                if (!confirm(`Make ${username} the Class Representative?`)) return;
+            try {
+                const response = await authenticatedFetch(`${API_URL}/api/classrooms/${classroomId}/students/${studentId}/sessions`);
+                if (!response.ok) throw new Error('Failed to load sessions');
+                const sessions = await response.json();
 
-                try {
-                    const response = await authenticatedFetch(`${API_URL}/api/classrooms/${classroomId}/students/${studentId}/role`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ role: 'representative' })
-                    });
-
-                    if (!response.ok) throw new Error('Failed to update role');
-
-                    loadClassroomData(); // Reload
-                } catch (error) {
-                    alert('Error updating role');
-                    console.error(error);
-                }
-            }
-
-            async function viewStudentSessions(index) {
-                const student = currentStudents[index];
-                if (!student) {
-                    alert("Error: Student data not found.");
-                    return;
-                }
-                const { student_id: studentId, username } = student;
-
-                document.getElementById('sessionStudentName').innerText = username;
-                const tbody = document.getElementById('sessionsTableBody');
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Loading...</td></tr>';
-
-                try {
-                    const modalEl = document.getElementById('studentSessionsModal');
-                    if (!modalEl) throw new Error("Modal element not found");
-
-                    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-                    modal.show();
-                } catch (e) {
-                    console.error("Error showing modal:", e);
-                    alert("Error opening modal window: " + e.message);
+                if (sessions.length === 0) {
+                    statsBody.innerHTML = `
+                        <div class="text-center py-4">
+                            <div style="font-size:2.5rem;">📭</div>
+                            <p class="text-secondary mt-2">No sessions recorded for <strong>${username}</strong> in this classroom yet.</p>
+                        </div>`;
                     return;
                 }
 
-                try {
-                    const response = await authenticatedFetch(`${API_URL}/api/classrooms/${classroomId}/students/${studentId}/sessions`);
-                    if (!response.ok) throw new Error('Failed to load sessions');
+                // --- Compute Stats ---
+                const totalSessions = sessions.length;
+                const totalStudyTime = Math.round(sessions.reduce((s, r) => s + (r.duration || 0), 0) / 60);
+                const avgFocus = Math.round(sessions.reduce((s, r) => s + (r.focus_score || 0), 0) / totalSessions);
+                const totalDistractions = sessions.reduce((s, r) => s + (r.distractions || 0), 0);
+                const sessionsWithCamera = sessions.filter(r => r.camera_enabled).length;
 
-                    const sessions = await response.json();
-                    tbody.innerHTML = '';
+                // Most used technique
+                const techCount = {};
+                sessions.forEach(r => { const t = r.technique || 'None'; techCount[t] = (techCount[t] || 0) + 1; });
+                const mostUsedTechnique = Object.entries(techCount).sort((a, b) => b[1] - a[1])[0]?.[0] || 'None';
 
-                    if (sessions.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary">No sessions recorded in this classroom.</td></tr>';
-                        return;
-                    }
+                // Focus score colour
+                const focusColor = avgFocus >= 80 ? '#10b981' : avgFocus >= 50 ? '#f59e0b' : '#ef4444';
+                const distractColor = totalDistractions > 100 ? '#f59e0b' : '#ffffff';
 
-                    sessions.forEach(session => {
-                        const date = new Date(session.timestamp).toLocaleString();
-                        const durationMatches = session.duration || 0;
-                        const duration = Math.round(durationMatches / 60) + ' min';
-                        const score = Math.round(session.focus_score);
-                        const scoreColor = score >= 80 ? 'text-success' : (score >= 50 ? 'text-warning' : 'text-danger');
+                // --- Render ---
+                statsBody.innerHTML = `
+                    <p class="text-secondary mb-4" style="font-size:0.82rem; border-bottom:1px solid #2d3748; padding-bottom:14px;">
+                        Stats for <strong style="color:#c7d2fe;">${username}</strong>
+                    </p>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px 16px;">
 
-                        const row = `
-                        <tr>
-                            <td>${date}</td>
-                            <td>${session.technique || 'None'}</td>
-                            <td>${duration}</td>
-                            <td class="${scoreColor} fw-bold">${score}</td>
-                            <td>${session.user_state}</td>
-                        </tr>
-                    `;
-                        tbody.insertAdjacentHTML('beforeend', row);
-                    });
+                        <div>
+                            <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">Total Sessions:</div>
+                            <div style="font-size:1.6rem; font-weight:700;">${totalSessions}</div>
+                        </div>
 
-                } catch (error) {
-                    console.error('Error fetching sessions:', error);
-                    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error loading sessions: ${error.message}</td></tr>`;
-                }
+                        <div>
+                            <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">Total Study Time:</div>
+                            <div style="font-size:1.6rem; font-weight:700;">${totalStudyTime} min</div>
+                        </div>
+
+                        <div>
+                            <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">Avg Focus Score:</div>
+                            <div style="font-size:1.6rem; font-weight:700; color:${focusColor};">${avgFocus}</div>
+                        </div>
+
+                        <div>
+                            <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">Total Distractions:</div>
+                            <div style="font-size:1.6rem; font-weight:700; color:${distractColor};">${totalDistractions}</div>
+                        </div>
+
+                        <div>
+                            <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">Most Used Technique:</div>
+                            <div style="font-size:1.1rem; font-weight:700; color:#60a5fa;">${mostUsedTechnique}</div>
+                        </div>
+
+                        <div>
+                            <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">Sessions with Camera:</div>
+                            <div style="font-size:1.6rem; font-weight:700; color:#10b981;">${sessionsWithCamera}</div>
+                        </div>
+
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error('Error fetching sessions:', error);
+                statsBody.innerHTML = `<div class="text-center text-danger py-3">Error loading stats: ${error.message}</div>`;
+            }
+        }
+
+        async function removeStudent(studentId, username) {
+            if (!confirm(`Are you sure you want to remove ${username} from this classroom?`)) return;
+
+            try {
+                const response = await authenticatedFetch(`${API_URL}/api/classrooms/${classroomId}/students/${studentId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) throw new Error('Failed to remove student');
+
+                loadClassroomData(); // Reload
+            } catch (error) {
+                alert('Error removing student');
+            }
+        }
+
+        function showAddStudentModal() {
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('addStudentModal'));
+            modal.show();
+        }
+
+        function renderCharts(students) {
+            // Select chart containers based on persistent layout structure (Row 2 cards)
+            const cards = document.querySelectorAll('.stat-card');
+            if (cards.length < 5) return; // Ensure elements exist
+
+            const perfContainer = cards[3];
+            // For distContainer, it's the inner div of the 5th card.
+            const distCard = cards[4];
+
+            // Let's redefine the no-data state logic to be safer.
+
+            if (students.length === 0) {
+                perfContainer.innerHTML = '<h5 class="card-title mb-4">Student Focus Performance</h5><p class="text-center text-secondary my-5">No student data available yet.</p>';
+
+                // For distribution, we want to keep the card title which is in the card, but our distContainer variable previously was the inner div.
+                // Let's just set the card content.
+                distCard.innerHTML = '<h5 class="card-title mb-4">Focus Distribution</h5><div style="height: 300px; display: flex; justify-content: center; align-items: center;"><p class="text-secondary">No data</p></div>';
+                return;
             }
 
-            async function removeStudent(studentId, username) {
-                if (!confirm(`Are you sure you want to remove ${username} from this classroom?`)) return;
-
-                try {
-                    const response = await authenticatedFetch(`${API_URL}/api/classrooms/${classroomId}/students/${studentId}`, {
-                        method: 'DELETE'
-                    });
-
-                    if (!response.ok) throw new Error('Failed to remove student');
-
-                    loadClassroomData(); // Reload
-                } catch (error) {
-                    alert('Error removing student');
-                }
+            // Restore if missing
+            if (!perfContainer.querySelector('#performanceChart')) {
+                perfContainer.innerHTML = '<h5 class="card-title mb-4">Student Focus Performance</h5><canvas id="performanceChart"></canvas>';
             }
 
-            function showAddStudentModal() {
-                const modal = new bootstrap.Modal(document.getElementById('addStudentModal'));
-                modal.show();
+            if (!distCard.querySelector('#distributionChart')) {
+                distCard.innerHTML = '<h5 class="card-title mb-4">Focus Distribution</h5><div style="height: 300px; display: flex; justify-content: center; align-items: center;"><canvas id="distributionChart"></canvas></div>';
             }
 
-            function renderCharts(students) {
-                // Select chart containers based on persistent layout structure (Row 2 cards)
-                const cards = document.querySelectorAll('.stat-card');
-                if (cards.length < 5) return; // Ensure elements exist
+            // 1. Performance Chart (Bar)
+            const ctxPerf = document.getElementById('performanceChart');
 
-                const perfContainer = cards[3];
-                // For distContainer, it's the inner div of the 5th card.
-                const distCard = cards[4];
+            // Prepare Data
+            const labels = students.map(s => s.username);
+            const focusScores = students.map(s => Math.round(s.avg_focus_score));
+            const colors = focusScores.map(s => s >= 80 ? '#10b981' : (s >= 50 ? '#f59e0b' : '#ef4444'));
 
-                // Let's redefine the no-data state logic to be safer.
+            if (performanceChartInstance) performanceChartInstance.destroy();
 
-                if (students.length === 0) {
-                    perfContainer.innerHTML = '<h5 class="card-title mb-4">Student Focus Performance</h5><p class="text-center text-secondary my-5">No student data available yet.</p>';
-
-                    // For distribution, we want to keep the card title which is in the card, but our distContainer variable previously was the inner div.
-                    // Let's just set the card content.
-                    distCard.innerHTML = '<h5 class="card-title mb-4">Focus Distribution</h5><div style="height: 300px; display: flex; justify-content: center; align-items: center;"><p class="text-secondary">No data</p></div>';
-                    return;
-                }
-
-                // Restore if missing
-                if (!perfContainer.querySelector('#performanceChart')) {
-                    perfContainer.innerHTML = '<h5 class="card-title mb-4">Student Focus Performance</h5><canvas id="performanceChart"></canvas>';
-                }
-
-                if (!distCard.querySelector('#distributionChart')) {
-                    distCard.innerHTML = '<h5 class="card-title mb-4">Focus Distribution</h5><div style="height: 300px; display: flex; justify-content: center; align-items: center;"><canvas id="distributionChart"></canvas></div>';
-                }
-
-                // 1. Performance Chart (Bar)
-                const ctxPerf = document.getElementById('performanceChart');
-
-                // Prepare Data
-                const labels = students.map(s => s.username);
-                const focusScores = students.map(s => Math.round(s.avg_focus_score));
-                const colors = focusScores.map(s => s >= 80 ? '#10b981' : (s >= 50 ? '#f59e0b' : '#ef4444'));
-
-                if (performanceChartInstance) performanceChartInstance.destroy();
-
-                performanceChartInstance = new Chart(ctxPerf.getContext('2d'), {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Avg Focus Score',
-                            data: focusScores,
-                            backgroundColor: colors,
-                            borderColor: colors,
-                            borderWidth: 1,
-                            borderRadius: 6,
-                            barPercentage: 0.6
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                max: 100,
-                                grid: { color: '#334155' },
-                                ticks: { color: '#cbd5e1' }
-                            },
-                            x: {
-                                grid: { display: false },
-                                ticks: { color: '#cbd5e1' }
-                            }
+            performanceChartInstance = new Chart(ctxPerf.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Avg Focus Score',
+                        data: focusScores,
+                        backgroundColor: colors,
+                        borderColor: colors,
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        barPercentage: 0.6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: '#334155' },
+                            ticks: { color: '#cbd5e1' }
                         },
-                        plugins: {
-                            legend: { display: false }
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#cbd5e1' }
                         }
-                    }
-                });
-
-                // 2. Distribution Chart (Doughnut)
-                const high = students.filter(s => s.avg_focus_score >= 80).length;
-                const med = students.filter(s => s.avg_focus_score >= 50 && s.avg_focus_score < 80).length;
-                const low = students.filter(s => s.avg_focus_score < 50).length;
-
-                const ctxDist = document.getElementById('distributionChart');
-                if (!ctxDist) return;
-
-                if (distributionChartInstance) distributionChartInstance.destroy();
-
-                distributionChartInstance = new Chart(ctxDist.getContext('2d'), {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['High Focus (>80)', 'Medium (50-80)', 'Low (<50)'],
-                        datasets: [{
-                            data: [high, med, low],
-                            backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
-                            borderWidth: 0
-                        }]
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: { color: '#cbd5e1' }
-                            }
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+
+            // 2. Distribution Chart (Doughnut)
+            const high = students.filter(s => s.avg_focus_score >= 80).length;
+            const med = students.filter(s => s.avg_focus_score >= 50 && s.avg_focus_score < 80).length;
+            const low = students.filter(s => s.avg_focus_score < 50).length;
+
+            const ctxDist = document.getElementById('distributionChart');
+            if (!ctxDist) return;
+
+            if (distributionChartInstance) distributionChartInstance.destroy();
+
+            distributionChartInstance = new Chart(ctxDist.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['High Focus (>80)', 'Medium (50-80)', 'Low (<50)'],
+                    datasets: [{
+                        data: [high, med, low],
+                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#cbd5e1' }
                         }
                     }
-                });
-            }
+                }
+            });
+        }
 
-            function copyCode() {
-                const code = document.getElementById('classCode').innerText;
-                navigator.clipboard.writeText(code).then(() => {
-                    const btn = document.querySelector('button[onclick="copyCode()"]');
-                    const originalText = btn.innerText; // might be emoji
-                    // minimal visual feedback via tooltip or just assume it worked as we don't have toast lib set up perfectly
-                    alert("Code copied to clipboard: " + code);
-                });
-            }
-        </script>
+        function copyCode() {
+            const code = document.getElementById('classCode').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = document.querySelector('button[onclick="copyCode()"]');
+                const originalText = btn.innerText; // might be emoji
+                // minimal visual feedback via tooltip or just assume it worked as we don't have toast lib set up perfectly
+                alert("Code copied to clipboard: " + code);
+            });
+        }
+    </script>
 </body>
 
 </html>

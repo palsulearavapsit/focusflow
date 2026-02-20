@@ -7,6 +7,8 @@ from config import settings
 
 router = APIRouter()
 
+from typing import Optional
+
 class YouTubeAnalysisRequest(BaseModel):
     url: str
 
@@ -15,6 +17,7 @@ class YouTubeAnalysisResponse(BaseModel):
     confidence: float
     title: str
     reason: str
+    video_id: Optional[str] = None
 
 # Keywords to classify as "Study"
 STUDY_KEYWORDS = [
@@ -54,7 +57,21 @@ def extract_video_id(url):
     return None
 
 def get_youtube_title(video_id):
-    # Use oEmbed endpoint which is public
+    # 1. Try YouTube Data API v3 (most reliable)
+    if settings.YOUTUBE_API_KEY:
+        try:
+            url = f"https://www.googleapis.com/youtube/v3/videos?id={video_id}&key={settings.YOUTUBE_API_KEY}&part=snippet"
+            response = requests.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                if "items" in data and len(data["items"]) > 0:
+                    return data["items"][0]["snippet"]["title"]
+            else:
+                print(f"YouTube Cloud API Error: {response.text}")
+        except Exception as e:
+            print(f"YouTube Cloud API Error: {e}")
+
+    # 2. Fallback: Use oEmbed endpoint (public, rate-limited)
     try:
         oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
         response = requests.get(oembed_url)
@@ -62,7 +79,7 @@ def get_youtube_title(video_id):
             return response.json().get("title", "")
         return ""
     except Exception as e:
-        print(f"Error fetching title: {e}")
+        print(f"Error fetching title via oEmbed: {e}")
         return ""
 
 @router.post("/analyze_youtube", response_model=YouTubeAnalysisResponse)
@@ -77,7 +94,8 @@ async def analyze_youtube_video(request: YouTubeAnalysisRequest):
             is_study_related=True, 
             confidence=0.5,
             title="Unknown Video",
-            reason="Could not fetch title, please verify manually."
+            reason="Could not fetch title, please verify manually.",
+            video_id=video_id
         )
     
     # --- GEMINI AI INTEGRATION ---
@@ -112,7 +130,8 @@ async def analyze_youtube_video(request: YouTubeAnalysisRequest):
                 is_study_related=result.get('is_study', False),
                 confidence=result.get('confidence', 0.8),
                 title=title,
-                reason=result.get('reason', 'AI Analysis')
+                reason=result.get('reason', 'AI Analysis'),
+                video_id=video_id
             )
             
         except Exception as e:
@@ -140,5 +159,6 @@ async def analyze_youtube_video(request: YouTubeAnalysisRequest):
         is_study_related=score >= 0,
         confidence=0.8 if found_study or found_distraction else 0.4,
         title=title,
-        reason=reason
+        reason=reason,
+        video_id=video_id
     )

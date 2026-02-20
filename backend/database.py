@@ -234,6 +234,12 @@ def create_session(session_data: dict) -> int:
     return db.execute_query(query, params)
 
 
+def update_session_score(session_id: int, focus_score: float):
+    """Update session focus score (overriding trigger calculation)"""
+    query = "UPDATE sessions SET focus_score = %s WHERE id = %s"
+    db.execute_query(query, (focus_score, session_id))
+
+
 def get_user_sessions(user_id: int, limit: int = 10) -> list:
     """Get user's session history"""
     query = """
@@ -380,7 +386,7 @@ def get_student_sessions_for_classroom(classroom_id: int, student_id: int) -> li
     query = """
         SELECT 
             id, technique, study_mode, duration, focus_score, 
-            distractions, timestamp, user_state
+            distractions, timestamp, user_state, camera_enabled
         FROM sessions 
         WHERE user_id = %s AND classroom_id = %s
         ORDER BY timestamp DESC

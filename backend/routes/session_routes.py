@@ -13,7 +13,8 @@ from schemas import (
     MessageResponse
 )
 from auth import get_current_student
-from database import create_session, get_user_sessions
+from database import create_session, get_user_sessions, update_session_score
+from ml_utils import calculate_advanced_focus_score
 from datetime import datetime
 import logging
 
@@ -143,8 +144,36 @@ async def end_session(
             "user_state": session_data.user_state.value
         }
         
-        # Save session to database (focus score calculated by trigger)
+        # Save session to database (initial focus score calculated by trigger)
         session_id = create_session(complete_session_data)
+        
+        # Calculate Advanced Focus Score (if metrics provided)
+        # Check if advanced metrics are present in the request
+        advanced_score = None
+        advanced_result = None
+        if (session_data.sustained_attention_minutes is not None and 
+            session_data.sustained_distraction_minutes is not None):
+            
+            # Calculate duration in minutes (ensure non-zero)
+            duration_min = max(session_data.duration / 60.0, 0.1)
+            
+            advanced_result = calculate_advanced_focus_score(
+                session_duration_minutes=duration_min,
+                sustained_attention_minutes=session_data.sustained_attention_minutes,
+                face_presence_minutes=(session_data.duration - session_data.camera_absence_time) / 60.0,
+                sustained_distraction_minutes=session_data.sustained_distraction_minutes,
+                distraction_events=session_data.distraction_events if session_data.distraction_events is not None else session_data.distractions,
+                avg_recovery_time_seconds=session_data.avg_recovery_time_seconds or 0.0,
+                emotion_stability_ratio=session_data.emotion_stability_ratio or 0.5
+            )
+            
+            advanced_score = advanced_result['focus_score']
+            logger.info(f"🧠 Advanced Focus Score Calculated: {advanced_score}")
+            logger.info(f"   Analysis: {advanced_result['analysis']}")
+            
+            # Update database with new score (overriding trigger result)
+            update_session_score(session_id, advanced_score)
+        
         
         # Get saved session with calculated focus score
         saved_sessions = get_user_sessions(user_id, limit=1)
@@ -165,6 +194,13 @@ async def end_session(
         
         logger.info(f"✅ Session ended for user {user_id}: Score {saved_session['focus_score']}")
         
+        # Prepare Analysis Data
+        analysis_data = {
+            "analysis": advanced_result.get('analysis') if advanced_result else None,
+            "strength": advanced_result.get('strength') if advanced_result else None,
+            "improvement_area": advanced_result.get('improvement_area') if advanced_result else None
+        }
+
         # Return session summary
         return SessionSummaryResponse(
             session_id=saved_session['id'],
@@ -183,7 +219,8 @@ async def end_session(
             idle_time_percentage=round(idle_percentage, 2),
             tab_switches=session_data.tab_switches,
             camera_absence_minutes=session_data.camera_absence_time // 60,
-            face_absence_minutes=session_data.face_absence_time // 60
+            face_absence_minutes=session_data.face_absence_time // 60,
+            **analysis_data
         )
         
     except HTTPException:

@@ -94,106 +94,110 @@
                         <a href="study.html" class="btn btn-primary btn-lg shine-effect">
                             + Start New Session
                         </a>
+                        <a href="study.html?mode=group" class="btn btn-info ms-2 text-white">
+                            👥 Join Peer Study
+                        </a>
                         <a href="games.html" class="btn btn-outline-secondary ms-2">
                             🎮 Game Room
                         </a>
                     </div>
                 </div>
+            </div>
 
-                <!-- Stats Overview -->
-                <div class="row mb-5">
-                    <div class="col-md-3">
-                        <div class="card p-3">
-                            <h5 class="text-secondary" style="font-size: 0.9rem;">Total Sessions</h5>
-                            <h2 class="mb-0" id="totalSessions">--</h2>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card p-3">
-                            <h5 class="text-secondary" style="font-size: 0.9rem;">Avg Focus Score</h5>
-                            <h2 class="mb-0 text-primary" id="avgFocusScore">--</h2>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card p-3">
-                            <h5 class="text-secondary" style="font-size: 0.9rem;">Total Study Time</h5>
-                            <h2 class="mb-0" id="totalStudyTime">--</h2>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card p-3">
-                            <h5 class="text-secondary" style="font-size: 0.9rem;">Active Streak</h5>
-                            <h2 class="mb-0 text-success" id="activeStreak">--</h2>
-                        </div>
+            <!-- Stats Overview -->
+            <div class="row mb-5">
+                <div class="col-md-3">
+                    <div class="card p-3">
+                        <h5 class="text-secondary" style="font-size: 0.9rem;">Total Sessions</h5>
+                        <h2 class="mb-0" id="totalSessions">--</h2>
                     </div>
                 </div>
-
-                <!-- Charts Section -->
-                <div class="row g-4 mb-5">
-                    <div class="col-lg-8">
-                        <div class="card p-4 h-100">
-                            <h5 class="card-title mb-4">Focus History</h5>
-                            <canvas id="focusHistoryChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="col-lg-4">
-                        <div class="card p-4 h-100">
-                            <h5 class="card-title mb-4">Focus Quality</h5>
-                            <div
-                                style="position: relative; height: 300px; width: 100%; display: flex; justify-content: center;">
-                                <canvas id="focusQualityChart"></canvas>
-                            </div>
-                        </div>
+                <div class="col-md-3">
+                    <div class="card p-3">
+                        <h5 class="text-secondary" style="font-size: 0.9rem;">Avg Focus Score</h5>
+                        <h2 class="mb-0 text-primary" id="avgFocusScore">--</h2>
                     </div>
                 </div>
-
-                <!-- Recent Sessions -->
-                <div class="card mb-5">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0">Recent Sessions</h4>
-                        <button class="btn btn-sm btn-secondary" onclick="loadHistory()">Refresh</button>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table text-white"
-                                style="--bs-table-bg: transparent; --bs-table-color: var(--text-primary);">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Technique</th>
-                                        <th>Mode</th>
-                                        <th>Duration</th>
-                                        <th>Focus Score</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="sessionsTableBody">
-                                    <tr>
-                                        <td colspan="6" class="text-center py-4 text-muted">Loading history...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                <div class="col-md-3">
+                    <div class="card p-3">
+                        <h5 class="text-secondary" style="font-size: 0.9rem;">Total Study Time</h5>
+                        <h2 class="mb-0" id="totalStudyTime">--</h2>
                     </div>
                 </div>
-
-                <!-- All Classrooms -->
-                <div class="card" id="classroomsListContainer">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0">All Classrooms</h4>
-                        <a href="student_manage_classes.html" class="btn btn-sm btn-outline-primary">Classroom
-                            Management</a>
+                <div class="col-md-3">
+                    <div class="card p-3">
+                        <h5 class="text-secondary" style="font-size: 0.9rem;">Active Streak</h5>
+                        <h2 class="mb-0 text-success" id="activeStreak">--</h2>
                     </div>
-                    <div class="card-body">
-                        <div class="row g-3" id="classroomsList">
-                            <div class="col-12 text-center text-secondary">
-                                <p>Join a classroom to share your progress with your teacher.</p>
-                            </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="row g-4 mb-5">
+                <div class="col-lg-8">
+                    <div class="card p-4 h-100">
+                        <h5 class="card-title mb-4">Focus History</h5>
+                        <canvas id="focusHistoryChart"></canvas>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card p-4 h-100">
+                        <h5 class="card-title mb-4">Focus Quality</h5>
+                        <div
+                            style="position: relative; height: 300px; width: 100%; display: flex; justify-content: center;">
+                            <canvas id="focusQualityChart"></canvas>
                         </div>
                     </div>
                 </div>
             </div>
-        </main>
+
+            <!-- Recent Sessions -->
+            <div class="card mb-5">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Recent Sessions</h4>
+                    <button class="btn btn-sm btn-secondary" onclick="loadHistory()">Refresh</button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table text-white"
+                            style="--bs-table-bg: transparent; --bs-table-color: var(--text-primary);">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Technique</th>
+                                    <th>Mode</th>
+                                    <th>Duration</th>
+                                    <th>Focus Score</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sessionsTableBody">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-muted">Loading history...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- All Classrooms -->
+            <div class="card" id="classroomsListContainer">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">All Classrooms</h4>
+                    <a href="student_manage_classes.html" class="btn btn-sm btn-outline-primary">Classroom
+                        Management</a>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3" id="classroomsList">
+                        <div class="col-12 text-center text-secondary">
+                            <p>Join a classroom to share your progress with your teacher.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+    </div>
+    </main>
     </div>
 
     <!-- Bootstrap JS -->

@@ -1,24 +1,17 @@
-"""
-Machine Learning API Routes
-
-This module provides API endpoints for the computer vision pipeline.
-
-Available Endpoints:
-- POST /api/ml/detect-face: Face detection only
-- POST /api/ml/detect-emotion: Emotion detection (includes face detection)
-- POST /api/ml/analyze-frame: Complete analysis (all three models)
-- POST /api/ml/focus-metrics: Extract focus and attention metrics
-- GET /api/ml/status: Get pipeline status
-
-All endpoints require authentication.
-"""
-
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from schemas import (
     FaceDetectionResult, 
     EmotionDetectionResult,
     CompleteAnalysisResult,
-    FocusMetricsResult
+    FocusMetricsResult,
+    DistractionAlertRequest,
+    DistractionAlertResponse,
+    FullscreenViolationRequest,
+    FullscreenViolationResponse,
+    StudyRoomModerationRequest,
+    StudyRoomModerationResponse,
+    CognitiveAnalysisRequest,
+    CognitiveAnalysisResponse
 )
 from auth import get_current_student
 import ml_utils
@@ -33,21 +26,10 @@ async def detect_face_endpoint(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_student)
 ):
-    """
-    Detect faces in uploaded frame
-    
-    Uses: detect_face.tflite model
-    
-    Returns:
-    - face_detected: bool
-    - face_count: int
-    - confidence: float
-    """
     try:
         contents = await file.read()
         result = ml_utils.detect_face(contents)
         
-        # Extract first face details if detected
         bbox = None
         confidence = 0.0
         
@@ -76,18 +58,6 @@ async def detect_emotion_endpoint(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_student)
 ):
-    """
-    Detect emotion in uploaded frame
-    
-    Uses: 
-    - detect_face.tflite (to locate face)
-    - detect_emotion.h5 (to classify emotion)
-    
-    Returns:
-    - emotion_detected: bool
-    - emotion: str (e.g., "happy", "neutral")
-    - confidence: float
-    """
     try:
         contents = await file.read()
         emotion, confidence = ml_utils.detect_emotion(contents)
@@ -112,20 +82,6 @@ async def analyze_frame_endpoint(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_student)
 ):
-    """
-    Complete frame analysis using all three models
-    
-    Pipeline:
-    1. Face Detection (detect_face.tflite)
-    2. Eye Tracking (track_eye.task)
-    3. Emotion Detection (detect_emotion.h5)
-    
-    Returns comprehensive analysis with:
-    - Face detection results
-    - Eye tracking metrics (blink, gaze, attention)
-    - Emotion classification
-    - Processing time for each stage
-    """
     try:
         contents = await file.read()
         result = ml_utils.analyze_frame_complete(contents)
@@ -142,23 +98,6 @@ async def focus_metrics_endpoint(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_student)
 ):
-    """
-    Extract focus and attention metrics from frame
-    
-    This endpoint runs the complete pipeline and extracts metrics
-    relevant for study session tracking.
-    
-    Returns:
-    - face_present: bool
-    - multiple_faces: bool (distraction indicator)
-    - eyes_open: bool
-    - blink_detected: bool
-    - attention_score: float (0-1)
-    - gaze_centered: bool
-    - emotion_state: str
-    - engagement_score: float (0-1)
-    - overall_focus_score: float (0-1)
-    """
     try:
         contents = await file.read()
         metrics = ml_utils.get_focus_metrics(contents)
@@ -172,12 +111,6 @@ async def focus_metrics_endpoint(
 
 @router.get("/status")
 async def get_ml_status():
-    """
-    Get ML pipeline status
-    
-    Returns status of all three models and pipeline readiness.
-    No authentication required.
-    """
     try:
         status = ml_utils.get_pipeline_status()
         return status
@@ -187,18 +120,11 @@ async def get_ml_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Legacy endpoint for backward compatibility
 @router.post("/detect-eyes")
 async def detect_eyes_endpoint(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_student)
 ):
-    """
-    Detect eyes in uploaded frame (deprecated)
-    
-    This endpoint is kept for backward compatibility.
-    Use /analyze-frame or /focus-metrics instead for better results.
-    """
     logger.warning("detect-eyes endpoint is deprecated. Use /focus-metrics instead.")
     
     try:
@@ -218,5 +144,131 @@ async def detect_eyes_endpoint(
         return {
             "eyes_detected": False,
             "eye_count": 0,
-            "confidence": 0.0
+            "confidence": 0.0,
+            "deprecated": True,
+            "message": "Use /focus-metrics endpoint for comprehensive eye analysis"
         }
+
+
+@router.post("/evaluate-alert", response_model=DistractionAlertResponse)
+async def evaluate_alert_endpoint(
+    request: DistractionAlertRequest,
+    current_user: dict = Depends(get_current_student)
+):
+    try:
+        result = ml_utils.evaluate_distraction_alert(
+            session_duration_minutes=request.session_duration_minutes,
+            gaze_away_duration_30s=request.gaze_away_duration_30s,
+            face_absence_duration_30s=request.face_absence_duration_30s,
+            head_turned_duration=request.head_turned_duration,
+            distraction_events_last_5_min=request.distraction_events_last_5_min,
+            avg_recovery_time_seconds=request.avg_recovery_time_seconds,
+            current_focus_score=request.current_focus_score
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Alert evaluation error: {e}")
+        return {
+            "alert_type": "NO_ALERT",
+            "reason": "Error evaluating metrics",
+            "message_to_user": ""
+        }
+
+
+@router.post("/fullscreen-violation", response_model=FullscreenViolationResponse)
+async def evaluate_fullscreen_violation_endpoint(
+    request: FullscreenViolationRequest,
+    current_user: dict = Depends(get_current_student)
+):
+    try:
+        violation_count = max(1, request.violation_count)
+        
+        result = ml_utils.evaluate_fullscreen_violation(
+            session_duration_minutes=request.session_duration_minutes,
+            violation_count=violation_count,
+            last_violation_type=request.last_violation_type.value,
+            time_since_last_violation_seconds=request.time_since_last_violation_seconds,
+            current_focus_score=request.current_focus_score
+        )
+        
+        return FullscreenViolationResponse(
+            action=result['action'],
+            penalty_percentage=result['penalty_percentage'],
+            reason=result['reason'],
+            message_to_user=result['message_to_user']
+        )
+        
+    except Exception as e:
+        logger.error(f"Fullscreen violation evaluation error: {e}")
+        return FullscreenViolationResponse(
+            action="SOFT_WARNING",
+            penalty_percentage=0.0,
+            reason="Error evaluating policy",
+            message_to_user="Please stay in fullscreen mode."
+        )
+
+
+@router.post("/study-room-moderator", response_model=StudyRoomModerationResponse)
+async def evaluate_study_room_moderator_endpoint(
+    request: StudyRoomModerationRequest,
+    current_user: dict = Depends(get_current_student)
+):
+    try:
+        result = ml_utils.evaluate_study_room_policy(
+            total_participants=request.total_participants,
+            current_participant_focus_score=request.current_participant_focus_score,
+            average_room_focus_score=request.average_room_focus_score,
+            mic_status=request.mic_status,
+            camera_status=request.camera_status,
+            fullscreen_status=request.fullscreen_status,
+            distraction_events_last_5_min=request.distraction_events_last_5_min,
+            lock_mode_violations=request.lock_mode_violations,
+            session_time_remaining_minutes=request.session_time_remaining_minutes
+        )
+        
+        return StudyRoomModerationResponse(
+            action=result['action'],
+            penalty_percentage=result['penalty_percentage'],
+            private_message=result['private_message'],
+            room_message=result['room_message'],
+            reason=result['reason']
+        )
+        
+    except Exception as e:
+        logger.error(f"Study room moderator error: {e}")
+        return StudyRoomModerationResponse(
+            action="NO_ACTION",
+            penalty_percentage=0.0,
+            private_message=None,
+            room_message=None,
+            reason="Error evaluating moderator policy"
+        )
+
+
+@router.post("/cognitive-refresh", response_model=CognitiveAnalysisResponse)
+async def analyze_cognitive_refresh_endpoint(
+    request: CognitiveAnalysisRequest,
+    current_user: dict = Depends(get_current_student)
+):
+    try:
+        import cognitive_engine
+        result = cognitive_engine.analyze_cognitive_performance(
+            game_type=request.game_type,
+            current_metrics=request.current_metrics,
+            previous_metrics=request.previous_metrics,
+            focus_score=request.focus_score
+        )
+        
+        return CognitiveAnalysisResponse(
+            cognitive_refresh_score=result['cognitive_refresh_score'],
+            cognitive_state=result['cognitive_state'],
+            recommended_action=result['recommended_action'],
+            analysis=result['analysis'],
+            motivation_message=result['motivation_message']
+        )
+        
+    except Exception as e:
+        logger.error(f"Cognitive engine error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

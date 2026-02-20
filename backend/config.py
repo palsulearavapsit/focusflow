@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # ML Settings
     MODEL_PATH: str = "models/emotion_model.h5"
     GEMINI_API_KEY: str = ""
+    YOUTUBE_API_KEY: str = ""
 
     @property
     def DATABASE_URL(self) -> str:
