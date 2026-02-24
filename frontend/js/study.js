@@ -124,13 +124,24 @@ async function analyzeYouTubeVideo() {
     const resultDiv = document.getElementById('youtubeAnalysisResult');
     const container = document.getElementById('videoContainer');
     const iframe = document.getElementById('youtubeEmbedFrame');
+    const btn = document.getElementById('analyzeEmbedBtn');
     const url = input.value.trim();
 
-    if (!url) return;
+    if (!url) {
+        resultDiv.className = 'alert alert-warning mb-2 py-2 small';
+        resultDiv.innerHTML = '⚠️ Please paste a YouTube link first.';
+        resultDiv.classList.remove('d-none');
+        return;
+    }
 
-    // Reset UI
-    resultDiv.className = 'alert alert-info';
-    resultDiv.innerText = '🤖 AI Analyzing video content...';
+    // --- Loading State ---
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Checking...';
+    resultDiv.className = 'alert alert-secondary mb-2 py-2 small d-flex align-items-center gap-2';
+    resultDiv.innerHTML = `
+        <span class="spinner-border spinner-border-sm text-light" role="status"></span>
+        <span>🤖 <strong>Gemini AI</strong> is verifying if this video is study-related...</span>
+    `;
     resultDiv.classList.remove('d-none');
     container.classList.add('d-none');
     iframe.src = '';
@@ -141,43 +152,96 @@ async function analyzeYouTubeVideo() {
             body: JSON.stringify({ url })
         });
 
-        if (!response.ok) throw new Error('Analysis failed');
+        if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
         const data = await response.json();
+        const confPct = Math.round((data.confidence || 0) * 100);
+        const videoId = data.video_id || extractVideoId(url);
 
         if (data.is_study_related) {
-            resultDiv.className = 'alert alert-success';
+            // ✅ STUDY CONTENT
+            resultDiv.className = 'alert mb-2 py-2 small';
+            resultDiv.style.background = 'rgba(25,135,84,0.15)';
+            resultDiv.style.border = '1px solid rgba(25,135,84,0.5)';
+            resultDiv.style.color = '#d1e7dd';
             resultDiv.innerHTML = `
-                <strong>✅ Study Content Verified</strong><br>
-                Confidence: ${(data.confidence * 100).toFixed(0)}%<br>
-                Reason: ${data.reason}
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <strong>✅ Study Content Approved</strong>
+                    <span class="badge" style="background:rgba(25,135,84,0.5);font-size:0.7rem;">${confPct}% confident</span>
+                </div>
+                <div style="font-size:0.7rem;opacity:0.85;margin-bottom:6px;font-style:italic;">
+                    📺 ${escapeHtml(data.title)}
+                </div>
+                <div class="progress mb-2" style="height:4px;background:rgba(255,255,255,0.1);">
+                    <div class="progress-bar bg-success" style="width:${confPct}%;"></div>
+                </div>
+                <div style="font-size:0.7rem;opacity:0.8;">🧠 ${escapeHtml(data.reason)}</div>
             `;
 
-            // Embed Video - Use backend ID first, fallback to frontend
-            const videoId = data.video_id || extractVideoId(url);
-
             if (videoId) {
-                console.log("Embedding Video ID:", videoId);
                 iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
                 container.classList.remove('d-none');
             } else {
-                console.error("Could not determine video ID from", url);
-                alert("Could not extract video ID for embedding.");
+                showAlert('Could not extract video ID for embedding.', 'warning');
             }
+
         } else {
-            resultDiv.className = 'alert alert-danger';
-            resultDiv.innerHTML = `
-                <strong>⚠️ Potential Distraction</strong><br>
-                Confidence: ${(data.confidence * 100).toFixed(0)}%<br>
-                Reason: ${data.reason}<br>
-                <button class="btn btn-sm btn-outline-danger mt-2" onclick="forceEmbed('${url}')">Watch Anyway (Not Recommended)</button>
-            `;
+            // ❌ DISTRACTION CONTENT
+            resultDiv.className = 'alert mb-2 py-2 small';
+            resultDiv.style.background = 'rgba(220,53,69,0.15)';
+            resultDiv.style.border = '1px solid rgba(220,53,69,0.5)';
+            resultDiv.style.color = '#f8d7da';
+
+            // Countdown before allowing "Watch Anyway"
+            const COUNTDOWN = 5;
+            let remaining = COUNTDOWN;
+
+            const renderDistraction = (secs) => {
+                const btnHtml = secs > 0
+                    ? `<button class="btn btn-sm mt-2" disabled
+                           style="background:rgba(220,53,69,0.3);color:#f8d7da;border:1px solid rgba(220,53,69,0.5);font-size:0.7rem;">
+                           ⛔ Watch Anyway (${secs}s)
+                       </button>`
+                    : `<button class="btn btn-sm mt-2" onclick="forceEmbed('${escapeHtml(url)}')"
+                           style="background:rgba(220,53,69,0.3);color:#f8d7da;border:1px solid rgba(220,53,69,0.5);font-size:0.7rem;">
+                           ⚠️ Watch Anyway (Not Recommended)
+                       </button>`;
+
+                resultDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <strong>⚠️ Distraction Detected</strong>
+                        <span class="badge" style="background:rgba(220,53,69,0.5);font-size:0.7rem;">${confPct}% confident</span>
+                    </div>
+                    <div style="font-size:0.7rem;opacity:0.85;margin-bottom:6px;font-style:italic;">
+                        📺 ${escapeHtml(data.title)}
+                    </div>
+                    <div class="progress mb-2" style="height:4px;background:rgba(255,255,255,0.1);">
+                        <div class="progress-bar bg-danger" style="width:${confPct}%;"></div>
+                    </div>
+                    <div style="font-size:0.7rem;opacity:0.8;">🧠 ${escapeHtml(data.reason)}</div>
+                    ${btnHtml}
+                `;
+            };
+
+            renderDistraction(remaining);
+
+            const interval = setInterval(() => {
+                remaining--;
+                renderDistraction(remaining);
+                if (remaining <= 0) clearInterval(interval);
+            }, 1000);
         }
 
     } catch (e) {
-        console.error(e);
-        resultDiv.className = 'alert alert-warning';
-        resultDiv.innerText = 'Could not analyze video. Please check the link.';
+        console.error('[YouTube Analyze]', e);
+        resultDiv.className = 'alert alert-warning mb-2 py-2 small';
+        resultDiv.style.background = '';
+        resultDiv.style.border = '';
+        resultDiv.style.color = '';
+        resultDiv.innerHTML = `⚠️ Could not analyze video. Please check the link and try again.<br><small class="opacity-75">${e.message}</small>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Load';
     }
 }
 
@@ -187,7 +251,12 @@ function extractVideoId(url) {
     return (match && match[2].length === 11) ? match[2] : null;
 }
 
-// Global scope for the "Watch Anyway" button
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+// Global scope for the "Watch Anyway" button (called from inline HTML)
 window.forceEmbed = function (url) {
     const container = document.getElementById('videoContainer');
     const iframe = document.getElementById('youtubeEmbedFrame');
