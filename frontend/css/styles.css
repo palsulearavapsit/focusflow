@@ -76,15 +76,26 @@
 
 html {
     scroll-behavior: smooth;
+    background: var(--bg-primary);
+    /* Dark base so canvas has a dark backdrop */
 }
 
 body {
     font-family: var(--font-primary);
-    background: var(--bg-primary);
+    background: transparent;
+    /* Let particle canvas show through */
     color: var(--text-primary);
     line-height: 1.6;
     min-height: 100vh;
     overflow-x: hidden;
+}
+
+/* Ensure these containers don't block the canvas */
+.hero-section,
+.login-container,
+.signup-container,
+.layout-container {
+    background: transparent !important;
 }
 
 /* ===== TYPOGRAPHY ===== */
@@ -679,7 +690,8 @@ li {
     flex: 1;
     margin-left: 250px;
     padding: var(--spacing-xl);
-    background: var(--bg-primary);
+    background: transparent;
+    /* Let particle canvas show through */
     width: calc(100% - 250px);
 }
 

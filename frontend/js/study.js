@@ -253,7 +253,7 @@ function extractVideoId(url) {
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
 // Global scope for the "Watch Anyway" button (called from inline HTML)
@@ -281,7 +281,7 @@ let activePDFIndex = -1;
 function clearSessionPDFs() {
     // Revoke all blob URLs so they can't be accessed after session ends
     sessionPDFs.forEach(pdf => {
-        try { URL.revokeObjectURL(pdf.url); } catch (e) {}
+        try { URL.revokeObjectURL(pdf.url); } catch (e) { }
     });
     sessionPDFs = [];
     activePDFIndex = -1;
@@ -380,7 +380,7 @@ function renderPDFTabs() {
 
 function removePDF(index) {
     if (index < 0 || index >= sessionPDFs.length) return;
-    try { URL.revokeObjectURL(sessionPDFs[index].url); } catch (e) {}
+    try { URL.revokeObjectURL(sessionPDFs[index].url); } catch (e) { }
     sessionPDFs.splice(index, 1);
 
     if (sessionPDFs.length === 0) {
@@ -404,7 +404,7 @@ function truncateName(name, maxLen) {
 }
 
 // Keep renderNotesArchive as a no-op stub so initializeStudyTools doesn't crash
-function renderNotesArchive() {}
+function renderNotesArchive() { }
 
 async function loadStudentClassrooms() {
     try {
@@ -501,6 +501,9 @@ async function startSession() {
 
         // Start Timer
         startTimer();
+
+        // Freeze particle background during session (less distraction)
+        if (window.ParticleNet) window.ParticleNet.pause();
 
     } catch (error) {
         console.error('Start session error:', error);
@@ -676,6 +679,9 @@ async function endSession() {
 
         // Show Summary
         showSummary(summary);
+
+        // Resume particle background now that session is over
+        if (window.ParticleNet) window.ParticleNet.resume();
 
     } catch (error) {
         console.error('End session error:', error);

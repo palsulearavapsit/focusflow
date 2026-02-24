@@ -122,17 +122,18 @@
             flex-wrap: wrap;
             gap: 4px;
             padding: 4px 0 6px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             margin-bottom: 6px;
         }
+
         .pdf-tab {
             display: inline-flex;
             align-items: center;
             gap: 6px;
             padding: 3px 8px;
             font-size: 0.72rem;
-            background: rgba(255,255,255,0.07);
-            border: 1px solid rgba(255,255,255,0.15);
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             color: #adb5bd;
             border-radius: 6px;
             cursor: pointer;
@@ -140,23 +141,27 @@
             white-space: nowrap;
             max-width: 180px;
         }
+
         .pdf-tab:hover {
-            background: rgba(99,102,241,0.25);
-            border-color: rgba(99,102,241,0.5);
+            background: rgba(99, 102, 241, 0.25);
+            border-color: rgba(99, 102, 241, 0.5);
             color: #e2e8f0;
         }
+
         .pdf-tab.active {
-            background: rgba(99,102,241,0.35);
-            border-color: rgba(99,102,241,0.8);
+            background: rgba(99, 102, 241, 0.35);
+            border-color: rgba(99, 102, 241, 0.8);
             color: #fff;
             font-weight: 600;
         }
+
         .pdf-tab-name {
             overflow: hidden;
             text-overflow: ellipsis;
             max-width: 130px;
             pointer-events: none;
         }
+
         .pdf-tab-close {
             font-size: 0.9rem;
             line-height: 1;
@@ -166,9 +171,10 @@
             border-radius: 3px;
             transition: opacity 0.15s, background 0.15s;
         }
+
         .pdf-tab-close:hover {
             opacity: 1;
-            background: rgba(220,53,69,0.4);
+            background: rgba(220, 53, 69, 0.4);
         }
     </style>
 </head>
@@ -561,6 +567,9 @@
                 sidebar.classList.toggle('open');
             }
         </script>
+
+        <!-- Shared Particle Network Background (pauses during active sessions) -->
+        <script src="js/particles.js?v=2"></script>
 </body>
 
 </html>
