@@ -267,81 +267,144 @@ window.forceEmbed = function (url) {
     }
 };
 
-// --- PDF Logic ---
+// --- PDF Logic (Session-Scoped) ---
+
+/**
+ * In-memory list of PDFs for the CURRENT session only.
+ * Each entry: { name: string, url: string (blob URL) }
+ * Cleared (and blob URLs revoked) whenever a new session starts.
+ */
+let sessionPDFs = [];
+let activePDFIndex = -1;
+
+/** Clear all session PDFs, revoke blob URLs, reset the viewer */
+function clearSessionPDFs() {
+    // Revoke all blob URLs so they can't be accessed after session ends
+    sessionPDFs.forEach(pdf => {
+        try { URL.revokeObjectURL(pdf.url); } catch (e) {}
+    });
+    sessionPDFs = [];
+    activePDFIndex = -1;
+
+    // Reset viewer
+    const viewer = document.getElementById('pdfFrame');
+    const placeholder = document.getElementById('pdfPlaceholder');
+    if (viewer) { viewer.src = ''; viewer.classList.add('d-none'); }
+    if (placeholder) placeholder.classList.remove('d-none');
+
+    // Clear tabs
+    renderPDFTabs();
+
+    // Also clear the old localStorage archive so old names don't linger
+    localStorage.removeItem('study_notes_archive');
+}
 
 function handlePDFUpload(e) {
     const file = e.target.files[0];
+    // Reset input so the same file can be uploaded again if needed
+    e.target.value = '';
+
     if (!file || file.type !== 'application/pdf') {
-        alert("Please select a valid PDF file.");
+        alert('Please select a valid PDF file.');
         return;
     }
 
-    // 1. Create Blob URL for immediate viewing
+    // Create blob URL for this session
     const objUrl = URL.createObjectURL(file);
-    displayPDF(objUrl);
 
-    // 2. Add to Archive (Local Storage)
-    addToArchive(file.name);
+    // Avoid adding duplicate names within the same session
+    const exists = sessionPDFs.findIndex(p => p.name === file.name);
+    if (exists !== -1) {
+        // Just switch to the existing one
+        switchToPDF(exists);
+        return;
+    }
+
+    sessionPDFs.push({ name: file.name, url: objUrl });
+    activePDFIndex = sessionPDFs.length - 1;
+
+    renderPDFTabs();
+    displayPDF(objUrl, activePDFIndex);
 }
 
-function displayPDF(url) {
+function displayPDF(url, index) {
     const viewer = document.getElementById('pdfFrame');
-    const container = document.getElementById('pdfViewerContainer');
+    const placeholder = document.getElementById('pdfPlaceholder');
 
-    // Hide placeholder text, show iframe
-    const placeholder = container.querySelector('div');
     if (placeholder) placeholder.classList.add('d-none');
-
     viewer.src = url;
     viewer.classList.remove('d-none');
+
+    activePDFIndex = index;
+    renderPDFTabs(); // re-render to update active state
 }
 
-function addToArchive(filename) {
-    let archive = JSON.parse(localStorage.getItem('study_notes_archive') || '[]');
-
-    // Avoid duplicates
-    if (!archive.some(item => item.name === filename)) {
-        archive.push({
-            name: filename,
-            date: new Date().toISOString()
-        });
-        localStorage.setItem('study_notes_archive', JSON.stringify(archive));
-        renderNotesArchive();
-    }
+function switchToPDF(index) {
+    if (index < 0 || index >= sessionPDFs.length) return;
+    displayPDF(sessionPDFs[index].url, index);
 }
 
-function renderNotesArchive() {
-    const list = document.getElementById('notesArchiveList');
-    if (!list) return;
+function renderPDFTabs() {
+    const container = document.getElementById('pdfTabsContainer');
+    if (!container) return;
 
-    const archive = JSON.parse(localStorage.getItem('study_notes_archive') || '[]');
-
-    if (archive.length === 0) {
-        list.innerHTML = '<div class="text-muted small text-center mt-3">No archived notes</div>';
+    if (sessionPDFs.length === 0) {
+        container.innerHTML = '';
+        container.classList.add('d-none');
         return;
     }
 
-    list.innerHTML = '';
-    archive.forEach(item => {
-        const div = document.createElement('a');
-        div.href = '#';
-        div.className = 'list-group-item list-group-item-action bg-dark text-light border-secondary';
-        div.innerHTML = `
-            <div class="d-flex w-100 justify-content-between">
-                <h6 class="mb-1 text-truncate" style="max-width: 150px;">${item.name}</h6>
-                <small class="text-muted">${new Date(item.date).toLocaleDateString()}</small>
-            </div>
-            <small class="text-info">Click to re-upload</small>
+    container.classList.remove('d-none');
+    container.innerHTML = '';
+
+    sessionPDFs.forEach((pdf, i) => {
+        const tab = document.createElement('button');
+        tab.className = 'pdf-tab btn btn-sm' + (i === activePDFIndex ? ' active' : '');
+        tab.title = pdf.name;
+        tab.innerHTML = `
+            <span class="pdf-tab-name">${escapeHtml(truncateName(pdf.name, 18))}</span>
+            <span class="pdf-tab-close" data-index="${i}" title="Remove">×</span>
         `;
-        // Since we can't persist the File object, clicking "Archive" just prompts user to re-select
-        // improving this simply to user prompt
-        div.onclick = (e) => {
-            e.preventDefault();
-            document.getElementById('pdfUploadInput').click();
-        };
-        list.appendChild(div);
+        tab.addEventListener('click', (e) => {
+            // If the × was clicked, remove instead of switching
+            if (e.target.dataset.index !== undefined) {
+                e.stopPropagation();
+                removePDF(parseInt(e.target.dataset.index));
+            } else {
+                switchToPDF(i);
+            }
+        });
+        container.appendChild(tab);
     });
 }
+
+function removePDF(index) {
+    if (index < 0 || index >= sessionPDFs.length) return;
+    try { URL.revokeObjectURL(sessionPDFs[index].url); } catch (e) {}
+    sessionPDFs.splice(index, 1);
+
+    if (sessionPDFs.length === 0) {
+        activePDFIndex = -1;
+        const viewer = document.getElementById('pdfFrame');
+        const placeholder = document.getElementById('pdfPlaceholder');
+        if (viewer) { viewer.src = ''; viewer.classList.add('d-none'); }
+        if (placeholder) placeholder.classList.remove('d-none');
+    } else {
+        // Stay on nearest tab
+        activePDFIndex = Math.min(index, sessionPDFs.length - 1);
+        displayPDF(sessionPDFs[activePDFIndex].url, activePDFIndex);
+    }
+    renderPDFTabs();
+}
+
+function truncateName(name, maxLen) {
+    // Remove .pdf extension for display, then truncate
+    const base = name.replace(/\.pdf$/i, '');
+    return base.length > maxLen ? base.substring(0, maxLen) + '…' : base;
+}
+
+// Keep renderNotesArchive as a no-op stub so initializeStudyTools doesn't crash
+function renderNotesArchive() {}
 
 async function loadStudentClassrooms() {
     try {
@@ -389,6 +452,9 @@ async function startSession() {
         });
 
         if (!response.ok) throw new Error('Failed to start session');
+
+        // Clear PDFs from any previous session BEFORE starting a fresh one
+        clearSessionPDFs();
 
         // Update local state
         sessionState = {

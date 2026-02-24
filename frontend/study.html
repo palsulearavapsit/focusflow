@@ -115,6 +115,61 @@
         .progress-ring-circle {
             transition: stroke-dashoffset 1s linear;
         }
+
+        /* ---- PDF Tabs ---- */
+        #pdfTabsContainer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 4px 0 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 6px;
+        }
+        .pdf-tab {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 8px;
+            font-size: 0.72rem;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #adb5bd;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+            white-space: nowrap;
+            max-width: 180px;
+        }
+        .pdf-tab:hover {
+            background: rgba(99,102,241,0.25);
+            border-color: rgba(99,102,241,0.5);
+            color: #e2e8f0;
+        }
+        .pdf-tab.active {
+            background: rgba(99,102,241,0.35);
+            border-color: rgba(99,102,241,0.8);
+            color: #fff;
+            font-weight: 600;
+        }
+        .pdf-tab-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 130px;
+            pointer-events: none;
+        }
+        .pdf-tab-close {
+            font-size: 0.9rem;
+            line-height: 1;
+            opacity: 0.6;
+            flex-shrink: 0;
+            padding: 0 2px;
+            border-radius: 3px;
+            transition: opacity 0.15s, background 0.15s;
+        }
+        .pdf-tab-close:hover {
+            opacity: 1;
+            background: rgba(220,53,69,0.4);
+        }
     </style>
 </head>
 
@@ -445,24 +500,15 @@
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="mb-0">📝 PDF Notes</h6>
                     <div>
-                        <button class="btn btn-sm btn-outline-secondary py-0 me-1" style="font-size: 0.8rem;"
-                            onclick="toggleSection('notesArchiveWrapper')">
-                            📂 Files
-                        </button>
                         <label class="btn btn-sm btn-outline-primary py-0" style="font-size: 0.8rem;">
-                            + Upload
+                            + Upload PDF
                             <input type="file" id="pdfUploadInput" accept="application/pdf" hidden>
                         </label>
                     </div>
                 </div>
 
-                <!-- Archive List (Collapsible, Hidden by default) -->
-                <div class="mb-2 d-none" id="notesArchiveWrapper">
-                    <div class="list-group list-group-flush border rounded border-secondary" id="notesArchiveList"
-                        style="max-height: 150px; overflow-y: auto;">
-                        <!-- Injected via JS -->
-                    </div>
-                </div>
+                <!-- PDF Tabs (shown when 1+ PDFs are uploaded in the session) -->
+                <div id="pdfTabsContainer" class="d-none"></div>
 
                 <!-- PDF Viewer (Fills rest of height) -->
                 <div id="pdfViewerContainer"
