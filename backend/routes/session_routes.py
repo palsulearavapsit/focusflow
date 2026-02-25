@@ -13,8 +13,8 @@ from schemas import (
     MessageResponse
 )
 from auth import get_current_student
-from database import create_session, get_user_sessions, update_session_score
-from ml_utils import calculate_advanced_focus_score
+from database import create_session, get_user_sessions, update_session_score, update_user_streak, update_user_title_in_db, get_session_statistics
+from ml_utils import calculate_advanced_focus_score, determine_user_title
 from datetime import datetime
 import logging
 
@@ -173,6 +173,18 @@ async def end_session(
             
             # Update database with new score (overriding trigger result)
             update_session_score(session_id, advanced_score)
+            
+            # Update Streak if focus score is decent (>50)
+            if advanced_score >= 50:
+                update_user_streak(user_id)
+            
+            # Re-calculate Title based on overall average
+            user_stats = get_session_statistics() # Returns list for all users, but we filter or get all if needed
+            user_stat = next((s for s in user_stats if s['user_id'] == user_id), None)
+            if user_stat:
+                new_title = determine_user_title(user_stat['avg_focus_score'], current_user['role'])
+                if new_title:
+                    update_user_title_in_db(user_id, new_title)
         
         
         # Get saved session with calculated focus score

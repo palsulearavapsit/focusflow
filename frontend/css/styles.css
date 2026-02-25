@@ -969,3 +969,89 @@ body.tools-panel-open .main-content {
     color: var(--primary-color);
     border-color: var(--primary-color);
 }
+
+/* ===== FOCUSBOT ROBOT STYLES ===== */
+.focus-bot {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 80px;
+    height: 100px;
+    z-index: 1000;
+    cursor: pointer;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.focus-bot:hover {
+    transform: scale(1.15) translateY(-5px);
+}
+
+.robot-head {
+    width: 60px;
+    height: 50px;
+    background: #ff4d4d;
+    border-radius: 15px 15px 5px 5px;
+    position: relative;
+    margin: 0 auto;
+    border: 3px solid #b30000;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    animation: robot-bobbing 2s ease-in-out infinite;
+}
+
+.robot-eyes {
+    display: flex;
+    justify-content: space-around;
+    width: 40px;
+    margin: 15px auto 0;
+}
+
+.eye {
+    width: 10px;
+    height: 10px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #00ffff;
+    transition: all 0.3s ease;
+}
+
+.robot-body {
+    width: 50px;
+    height: 30px;
+    background: #cc0000;
+    margin: -5px auto 0;
+    border-radius: 0 0 10px 10px;
+    border: 3px solid #b30000;
+    box-shadow: inset 0 -5px 10px rgba(0,0,0,0.2);
+}
+
+@keyframes robot-bobbing {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+/* Robot States Animations */
+.bot-happy .eye { 
+    height: 6px; 
+    border-radius: 10px 10px 2px 2px; 
+    background: #00ffcc;
+    box-shadow: 0 0 12px #00ffcc;
+}
+
+.bot-distracted .eye { 
+    background: #ffcc00; 
+    height: 12px; 
+    width: 12px;
+    box-shadow: 0 0 10px #ffcc00;
+}
+
+.bot-away .robot-head { 
+    background: #475569; 
+    border-color: #1e293b; 
+}
+
+.bot-away .eye { 
+    background: #1e293b; 
+    box-shadow: none; 
+    height: 3px;
+    margin-top: 18px;
+}

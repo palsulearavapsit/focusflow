@@ -17,7 +17,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadHistory();
     loadClassrooms();
     checkActiveSessionStatus();
+
+    // Robot companion (dashboard version)
+    initFocusBot();
 });
+
+// --- FocusBot Logic ---
+function initFocusBot() {
+    const user = getUser();
+    const bot = document.getElementById('focusBot');
+    if (!bot) return;
+
+    if (user && user.role === 'admin') {
+        bot.classList.add('d-none');
+        return;
+    }
+
+    bot.classList.remove('d-none');
+    updateFocusBot('happy');
+    bot.title = "Ready for the next session?";
+}
+
+function updateFocusBot(state) {
+    const bot = document.getElementById('focusBot');
+    if (!bot) return;
+    bot.classList.remove('bot-happy', 'bot-distracted', 'bot-away');
+    bot.classList.add(`bot-${state}`);
+}
 
 // ... (existing functions)
 
@@ -186,37 +212,9 @@ function updateStats(sessions) {
     document.getElementById('avgFocusScore').innerText = Math.round(avgScore);
     document.getElementById('totalStudyTime').innerText = formatDuration(totalTimeSec);
 
-    // Calculate Active Streak
-    let streak = 0;
-    if (sessions.length > 0) {
-        const uniqueDates = [...new Set(sessions.map(s => new Date(s.timestamp).toDateString()))];
-        // Sort dates descending
-        uniqueDates.sort((a, b) => new Date(b) - new Date(a));
-
-        const today = new Date().toDateString();
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toDateString();
-
-        // Check if studied today or yesterday to start streak
-        if (uniqueDates[0] === today || uniqueDates[0] === yesterdayStr) {
-            streak = 1;
-            let currentDate = new Date(uniqueDates[0]);
-
-            for (let i = 1; i < uniqueDates.length; i++) {
-                const prevDate = new Date(uniqueDates[i]);
-                const diffTime = Math.abs(currentDate - prevDate);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                if (diffDays === 1) {
-                    streak++;
-                    currentDate = prevDate;
-                } else {
-                    break;
-                }
-            }
-        }
-    }
+    // Use streak from user object (backend-calculated)
+    const user = getUser();
+    const streak = user ? user.streak_count : 0;
     document.getElementById('activeStreak').innerText = `${streak} days`;
 }
 

@@ -105,6 +105,9 @@ class UserResponse(BaseModel):
     username: str
     email: str
     role: UserRole
+    streak_count: int = 0
+    max_streak: int = 0
+    title: Optional[str] = "Novice FocusFlow"
     created_at: datetime
     
     class Config:

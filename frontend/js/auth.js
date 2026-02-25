@@ -132,6 +132,9 @@ async function verifyToken() {
             return false;
         }
 
+        const userData = await response.json();
+        setUser(userData); // Update local user with latest data (streaks, titles, etc)
+
         return true;
     } catch (error) {
         console.error('Token verification error:', error);
@@ -217,13 +220,38 @@ function displayUserInfo() {
 
     const userInfoElement = document.getElementById('userInfo');
     if (userInfoElement) {
+        const titleHtml = user.title ? `<div class="user-title text-secondary" style="font-size: 0.75rem; font-weight: 500;">${user.title}</div>` : '';
+        const roleBadge = user.role === 'admin' ? '' : `<span class="badge badge-primary ms-2" style="font-size: 0.6rem;">${user.role.toUpperCase()}</span>`;
+
         userInfoElement.innerHTML = `
-            <span class="text-secondary">Welcome, </span>
-            <span class="text-primary">${user.username}</span>
-            <span class="badge badge-${user.role === 'admin' ? 'warning' : 'primary'} ms-2">
-                ${user.role.toUpperCase()}
-            </span>
+            <div class="d-flex flex-column">
+                <div class="d-flex align-items-center">
+                    <span class="text-primary font-weight-bold">${user.username}</span>
+                    ${roleBadge}
+                </div>
+                ${titleHtml}
+            </div>
         `;
+    }
+
+    // Also update sidebar if present
+    const sidebarName = document.getElementById('userName');
+    const sidebarAvatar = document.getElementById('userAvatar');
+    if (sidebarName) sidebarName.innerText = user.username;
+    if (sidebarAvatar) sidebarAvatar.innerText = user.username.charAt(0).toUpperCase();
+
+    // Add title to sidebar if possible
+    const sidebarUserInfo = document.querySelector('.sidebar .user-info');
+    if (sidebarUserInfo && user.title && user.role !== 'admin') {
+        let titleEl = sidebarUserInfo.querySelector('.user-title-display');
+        if (!titleEl) {
+            titleEl = document.createElement('div');
+            titleEl.className = 'user-title-display text-secondary';
+            titleEl.style.fontSize = '0.7rem';
+            titleEl.style.marginTop = '2px';
+            sidebarUserInfo.appendChild(titleEl);
+        }
+        titleEl.innerText = user.title;
     }
 }
 

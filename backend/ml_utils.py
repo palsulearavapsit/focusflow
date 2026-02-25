@@ -370,3 +370,23 @@ def evaluate_fullscreen_violation(
         "message_to_user": message
     }
 
+
+def determine_user_title(avg_focus_score: float, role: str) -> str:
+    """Determine user title based on average focus score and role"""
+    if role == 'admin':
+        return None # No titles for admin
+    
+    if role == 'teacher':
+        if avg_focus_score >= 95: return "Orchestrator of Focus"
+        if avg_focus_score >= 85: return "Distraction Slayer"
+        if avg_focus_score >= 70: return "Academic Guardian"
+        return "Mentor"
+    
+    # Default for students
+    if avg_focus_score >= 95: return "Zen Master"
+    if avg_focus_score >= 85: return "Deep Work Scholar"
+    if avg_focus_score >= 70: return "Focused Apprentice"
+    if avg_focus_score >= 50: return "Steady Learner"
+    return "Novice FocusFlow"
+
+

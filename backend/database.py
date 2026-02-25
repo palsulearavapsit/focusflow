@@ -466,3 +466,47 @@ def get_all_teacher_students(teacher_id: int) -> list:
         GROUP BY u.id
     """
     return db.execute_query(query, (teacher_id,), fetch=True)
+
+
+def update_user_streak(user_id: int):
+    """
+    Update study streak for a user.
+    Called when a session is successfully completed.
+    """
+    from datetime import date, timedelta
+    
+    user = get_user_by_id(user_id)
+    if not user: return
+    
+    today = date.today()
+    last_study = user.get('last_study_date')
+    current_streak = user.get('streak_count', 0)
+    max_streak = user.get('max_streak', 0)
+    
+    # If already studied today, do nothing
+    if last_study == today:
+        return
+    
+    # If studied yesterday, increment streak
+    if last_study == today - timedelta(days=1):
+        new_streak = current_streak + 1
+    else:
+        # Streak broken
+        new_streak = 1
+        
+    new_max_streak = max(max_streak, new_streak)
+    
+    query = """
+        UPDATE users 
+        SET streak_count = %s, max_streak = %s, last_study_date = %s 
+        WHERE id = %s
+    """
+    db.execute_query(query, (new_streak, new_max_streak, today, user_id))
+    logger.info(f"🔥 Streak updated for user {user_id}: {new_streak} days")
+
+
+def update_user_title_in_db(user_id: int, title: str):
+    """Update user title in database"""
+    query = "UPDATE users SET title = %s WHERE id = %s"
+    db.execute_query(query, (title, user_id))
+

@@ -85,7 +85,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Check URL Params for Shortcuts
     const urlParams = new URLSearchParams(window.location.search);
+
+    // Initialize FocusBot
+    initFocusBot();
 });
+
+// --- FocusBot Logic ---
+function initFocusBot() {
+    const user = getUser();
+    const bot = document.getElementById('focusBot');
+    if (!bot) return;
+
+    // Admin doesn't get a robot
+    if (user && user.role === 'admin') {
+        bot.classList.add('d-none');
+        return;
+    }
+
+    // Show bot if we are in a session
+    if (sessionState.active) {
+        bot.classList.remove('d-none');
+    }
+
+    // Set default state
+    updateFocusBot('happy');
+}
+
+function updateFocusBot(state) {
+    const bot = document.getElementById('focusBot');
+    if (!bot) return;
+
+    bot.classList.remove('bot-happy', 'bot-distracted', 'bot-away');
+    bot.classList.add(`bot-${state}`);
+
+    // Add tooltip-like behavior or small text if needed
+    const states = {
+        'happy': 'You are doing great!',
+        'distracted': 'Eyes on the goal!',
+        'away': 'I am waiting for you...'
+    };
+    bot.title = states[state] || '';
+}
 
 // --- Study Tools Logic ---
 
@@ -501,6 +541,13 @@ async function startSession() {
         // Freeze particle background during session (less distraction)
         if (window.ParticleNet) window.ParticleNet.pause();
 
+        // Show and Reset FocusBot
+        const bot = document.getElementById('focusBot');
+        if (bot && !isAdmin()) {
+            bot.classList.remove('d-none');
+            updateFocusBot('happy');
+        }
+
     } catch (error) {
         console.error('Start session error:', error);
         showAlert('Could not start session. Please try again.', 'error');
@@ -686,6 +733,15 @@ function updateLiveStats() {
         elements.idleTime.innerText = `${idleSecs}s`;
     } else {
         elements.idleTime.innerText = `${Math.floor(idleSecs / 60)}m`;
+    }
+
+    // Update FocusBot State
+    if (sessionState.currentState === 'focused' || sessionState.currentState === 'reading') {
+        updateFocusBot('happy');
+    } else if (sessionState.currentState === 'distracted') {
+        updateFocusBot('distracted');
+    } else if (sessionState.currentState === 'away') {
+        updateFocusBot('away');
     }
 }
 
