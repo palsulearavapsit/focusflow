@@ -23,7 +23,8 @@ const CONFIG = {
     LONG_PAUSE: 180000,          // 180s
     CAMERA_THRESHOLD: 120000,    // 120s
     CHECK_INTERVAL: 1000,        // 1s
-    DISTRACTION_COOLDOWN: 5000   // 5s cooldown between any two increment events
+    DISTRACTION_COOLDOWN: 10000, // 10s cooldown between any two increment events
+    FACE_GRACE_PERIOD: 2         // Require 2 consecutive failures (approx 10s) before counting as distraction
 };
 
 let listenersInitialized = false;
@@ -78,6 +79,7 @@ function startDistractionTracking(mode = 'screen') {
         distractionCount: 0,
         currentState: 'focused',
         cameraAbsenceTime: 0,
+        consecutiveFaceFailures: 0,
         isFaceMissing: false,
         isMultipleFaces: false
     };
@@ -195,18 +197,20 @@ function updateDistractionLoop() {
                 // Run async without blocking the loop
                 detectFacePresence(videoEl).then(result => {
                     if (!result.face_detected) {
-                        console.log("⚠️ Distraction: Face not detected");
+                        distractionState.consecutiveFaceFailures++;
+                        console.log(`⚠️ Face not detected (${distractionState.consecutiveFaceFailures}/${CONFIG.FACE_GRACE_PERIOD})`);
 
                         // We check every 5s, so add 5s to absence time
                         distractionState.cameraAbsenceTime += 5000;
 
-                        // ONLY count as distraction ONCE when they first disappear
-                        if (!distractionState.isFaceMissing) {
+                        // ONLY count as distraction if failures exceed grace period
+                        if (!distractionState.isFaceMissing && distractionState.consecutiveFaceFailures >= CONFIG.FACE_GRACE_PERIOD) {
                             distractionState.isFaceMissing = true;
-                            checkDistraction('Face not detected');
+                            checkDistraction('Face not detected (Sustained)');
                         }
                     } else {
                         // Face is back
+                        distractionState.consecutiveFaceFailures = 0;
                         distractionState.isFaceMissing = false;
 
                         if (result.face_count > 1) {

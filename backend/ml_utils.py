@@ -156,8 +156,10 @@ def calculate_advanced_focus_score(
     avg_recovery_time_seconds: float,
     emotion_stability_ratio: float
 ) -> Dict:
+    import math
+
     # Normalize Inputs
-    if session_duration_minutes <= 0:
+    if session_duration_minutes <= 0.1:
         return {
             "focus_score": 0,
             "performance_level": "LOW",
@@ -166,15 +168,30 @@ def calculate_advanced_focus_score(
             "improvement_area": "N/A"
         }
 
-    # 1. Sustained Attention Ratio
-    attention_ratio = sustained_attention_minutes / session_duration_minutes
+    # --- 1. Virtual Start (Smoothing) ---
+    # We add 5 "virtual minutes" of perfect focus to smooth out the start of sessions.
+    # This prevents the score from dropping 50% because of one 30s mistake early on.
+    SMOOTHING_FACTOR = 5.0 
+    smoothed_duration = session_duration_minutes + SMOOTHING_FACTOR
+    
+    # --- 2. Sustained Attention Ratio (Smoothed) ---
+    # Base: How much time spent in the focused window vs total
+    attention_ratio = (sustained_attention_minutes + SMOOTHING_FACTOR) / smoothed_duration
     attention_ratio = max(0.0, min(1.0, attention_ratio))
     
-    # 2. Presence Stability Ratio
-    presence_stability = face_presence_minutes / session_duration_minutes
+    # --- 3. Presence Stability Ratio (Smoothed) ---
+    # Base: How much time face was detected vs total
+    presence_stability = (face_presence_minutes + SMOOTHING_FACTOR) / smoothed_duration
     presence_stability = max(0.0, min(1.0, presence_stability))
     
-    # 3. Recovery Efficiency Ratio
+    # --- 4. Logarithmic Distraction Penalty ---
+    # Instead of linear penalty, use log to make the first few mistakes "cheaper".
+    # log2(distractions + 1) scales slowly. 
+    # 0 dist = 0, 1 dist = 1, 3 dist = 2, 7 dist = 3, etc.
+    distraction_penalty_factor = math.log2(max(1, distraction_events + 1)) - 1 # starts at -1 and goes up
+    distraction_penalty_factor = max(0, distraction_penalty_factor) # ignore first distraction roughly
+    
+    # --- 5. Recovery Efficiency Ratio ---
     if distraction_events == 0:
         recovery_score = 1.0
     else:
@@ -188,33 +205,44 @@ def calculate_advanced_focus_score(
             recovery_score = 1.0 - ((avg_recovery_time_seconds - 10) / 50.0)
     recovery_score = max(0.0, min(1.0, recovery_score))
 
-    # 4. Engagement Stability (Emotion) - Max 5% weight
+    # --- 6. Engagement Stability (Emotion) ---
     engagement_stability = max(0.0, min(1.0, emotion_stability_ratio))
     
-    # Scoring Formula
+    # --- 7. Final Scoring Formula (Weighted) ---
     raw_score = (
         (0.50 * attention_ratio) +
         (0.30 * presence_stability) +
         (0.15 * recovery_score) +
         (0.05 * engagement_stability)
     )
+
+    # --- 8. Positive Reinforcement (Bonuses) ---
+    bonus = 1.0
+    # Bonus for zero distractions
+    if distraction_events == 0:
+        bonus += 0.05 
+    # Bonus for long sessions (Deep Work reward)
+    if session_duration_minutes >= 50:
+        bonus += 0.03
+        
+    final_score = int(round(raw_score * 100 * bonus))
     
-    final_score = int(round(raw_score * 100))
+    # Hard bounds: 0 to 100
     final_score = max(0, min(100, final_score))
     
     # Determine Performance Level & Analysis
     if final_score >= 90:
         level = "EXCELLENT"
-        analysis = "Exceptional focus performance. You demonstrated profound sustained attention and minimal variability in engagement."
+        analysis = "Exceptional focus performance. Your momentum was highly stable throughout the session."
     elif final_score >= 75:
         level = "HIGH"
-        analysis = "Strong study session. You maintained consistency well, with only minor interruptions that were quickly managed."
+        analysis = "Strong study session. You maintained consistency well and recovered quickly from minor interruptions."
     elif final_score >= 50:
         level = "MODERATE"
-        analysis = "Average focus stability. While you had periods of good work, frequent or sustained distractions impacted your overall score."
+        analysis = "Average focus stability. You had periods of good work, but overall momentum was inconsistent."
     else:
         level = "LOW"
-        analysis = "Focus needs improvement. Significant time was lost to distractions or absence. Consider shortening sessions or removing environmental triggers."
+        analysis = "Focus needs improvement. Momentum was frequently broken. Consider shorter sessions with fewer environmental triggers."
 
     # Identify Strength
     metrics = {
@@ -224,15 +252,15 @@ def calculate_advanced_focus_score(
         "Emotional Stability": engagement_stability
     }
     strength_key = max(metrics, key=metrics.get)
-    strength = f"Your {strength_key} was excellent ({int(metrics[strength_key]*100)}%)."
+    strength = f"Your {strength_key} was your strongest asset this session ({int(metrics[strength_key]*100)}%)."
 
     # Identify Improvement Area
     weakness_key = min(metrics, key=metrics.get)
     loss = (1.0 - metrics[weakness_key])
     if loss < 0.1:
-        improvement = "Maintain this high level of performance."
+        improvement = "Maintain this high level of focus and momentum."
     else:
-        improvement = f"Focus on improving {weakness_key}."
+        improvement = f"Aim to stabilize your {weakness_key} to build better momentum."
 
     return {
         "focus_score": final_score,
