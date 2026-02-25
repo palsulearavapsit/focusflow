@@ -50,7 +50,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
         "http://127.0.0.1:5500",
         "http://localhost:5500",
-        "null"
+        "https://focusflow-frontend.vercel.app",  # Add your Vercel URL here
+        "*" # Allow all for convenience in testing
     ]
     
     # Study Technique Configurations (in seconds)

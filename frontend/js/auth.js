@@ -3,7 +3,9 @@
  * Handles user authentication, token management, and session persistence
  */
 
-const API_URL = 'http://localhost:8000';
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:8000' 
+    : 'https://focusflow-backend.onrender.com'; // Replace with your Render URL
 
 // Token management
 function getToken() {
