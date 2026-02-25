@@ -368,36 +368,7 @@ class FullscreenViolationResponse(BaseModel):
     message_to_user: str
 
 
-class StudyRoomAction(str, Enum):
-    NO_ACTION = "NO_ACTION"
-    SOFT_NOTICE = "SOFT_NOTICE"
-    WARNING = "WARNING"
-    APPLY_SCORE_PENALTY = "APPLY_SCORE_PENALTY"
-    TEMPORARY_MUTE = "TEMPORARY_MUTE"
-    SUGGEST_GROUP_BREAK = "SUGGEST_GROUP_BREAK"
-    REMOVE_FROM_ROOM = "REMOVE_FROM_ROOM"
 
-
-class StudyRoomModerationRequest(BaseModel):
-    """Request model for study room moderator evaluation"""
-    total_participants: int = Field(default=1, ge=1)
-    current_participant_focus_score: float = Field(..., ge=0, le=100)
-    average_room_focus_score: float = Field(..., ge=0, le=100)
-    mic_status: Literal["ON", "OFF"]
-    camera_status: Literal["ON", "OFF"]
-    fullscreen_status: Literal["ACTIVE", "INACTIVE"]
-    distraction_events_last_5_min: int = Field(default=0, ge=0)
-    lock_mode_violations: int = Field(default=0, ge=0)
-    session_time_remaining_minutes: float = Field(default=0.0)
-
-
-class StudyRoomModerationResponse(BaseModel):
-    """Response model for study room moderator decision"""
-    action: StudyRoomAction
-    penalty_percentage: float = 0.0
-    private_message: Optional[str] = None
-    room_message: Optional[str] = None
-    reason: str
 
 # Cognitive Performance Engine Models
 class GameType(str, Enum):

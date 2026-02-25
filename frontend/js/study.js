@@ -85,10 +85,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Check URL Params for Shortcuts
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('mode') === 'group') {
-        const modeSelect = document.getElementById('modeSelect');
-        if (modeSelect) modeSelect.value = 'group';
-    }
 });
 
 // --- Study Tools Logic ---
@@ -590,38 +586,7 @@ function startMonitoring() {
             sessionState.currentState = metrics.currentState;
         }
 
-        // Peer Room Logic (Every 5 seconds)
-        if (sessionState.studyMode === 'group' && sessionState.duration % 5 === 0) {
-            try {
-                // Mock participants for now (single user room)
-                const response = await authenticatedFetch(`${API_URL}/api/ml/study-room-moderator`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        total_participants: 1,
-                        current_participant_focus_score: 80, // Mock
-                        average_room_focus_score: 75, // Mock
-                        mic_status: "OFF",
-                        camera_status: sessionState.cameraEnabled ? "ON" : "OFF",
-                        fullscreen_status: document.fullscreenElement ? "ACTIVE" : "INACTIVE",
-                        distraction_events_last_5_min: 0,
-                        lock_mode_violations: violationCount,
-                        session_time_remaining_minutes: 25 - (sessionState.duration / 60)
-                    })
-                });
 
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.room_message) {
-                        showAlert(`📢 Room Message: ${data.room_message}`, 'info');
-                    }
-                    if (data.private_message) {
-                        showAlert(`🔒 Private Notice: ${data.private_message}`, 'warning');
-                    }
-                }
-            } catch (e) {
-                console.warn("Moderator sync failed", e);
-            }
-        }
     }, 1000);
 }
 

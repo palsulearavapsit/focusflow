@@ -162,8 +162,10 @@ class FaceDetector:
                 return self._get_empty_result()
             
             # Run inference
+            print("\n" + "="*20 + " INFERENCE START " + "="*20)
             self.interpreter.set_tensor(self.input_details[0]['index'], img_input)
             self.interpreter.invoke()
+            print("="*20 + " INFERENCE END   " + "="*20 + "\n")
             
             # Get output tensors
             # Note: Output format depends on the specific TFLite model
@@ -196,52 +198,82 @@ class FaceDetector:
         boxes: np.ndarray, 
         scores: Optional[np.ndarray],
         image_shape: Tuple[int, int, int],
-        confidence_threshold: float = 0.5
+        confidence_threshold: float = 0.2
     ) -> Tuple[List, List]:
         """
         Parse detection outputs into bounding boxes and scores
-        
-        Args:
-            boxes: Raw box predictions from model
-            scores: Confidence scores (if available)
-            image_shape: Original image shape (h, w, c)
-            confidence_threshold: Minimum confidence to keep detection
-            
-        Returns:
-            (bounding_boxes, confidence_scores)
         """
         bounding_boxes = []
         confidence_scores = []
         
         try:
             # Handle different output formats
-            boxes = boxes[0]  # Remove batch dimension
+            if len(boxes.shape) == 3:
+                boxes = boxes[0]  # [N, 4 or 16]
             
-            if scores is not None:
-                scores = scores[0]  # Remove batch dimension
+            if scores is not None and len(scores.shape) == 3:
+                scores = scores[0]  # [N, 1]
             
             height, width = image_shape[:2]
             
+            # Debug: Check if scores need sigmoid (if they are logits)
+            if scores is not None:
+                max_score = np.max(scores)
+                min_score = np.min(scores)
+                print(f"DEBUG: Face scores range: [{min_score:.4f}, {max_score:.4f}]")
+                if len(boxes) > 0:
+                    print(f"DEBUG: First raw box: {boxes[0][:4]}")
+                
+                # If max score is > 5 or < 0, it's likely logits
+                needs_sigmoid = max_score > 1.0 or min_score < 0
+            else:
+                needs_sigmoid = False
+            
             for i, box in enumerate(boxes):
                 # Get confidence score
-                confidence = scores[i] if scores is not None else 1.0
+                raw_conf = scores[i] if scores is not None else 1.0
+                
+                # Handle array score [val]
+                if isinstance(raw_conf, (np.ndarray, list)):
+                    raw_conf = raw_conf[0]
+                
+                # Apply sigmoid if logit
+                if needs_sigmoid:
+                    conf = 1.0 / (1.0 + np.exp(-float(raw_conf)))
+                else:
+                    conf = float(raw_conf)
                 
                 # Filter by confidence threshold
-                if confidence < confidence_threshold:
+                if conf < confidence_threshold:
                     continue
                 
                 # Convert normalized coordinates to pixel coordinates
                 # Box format: [ymin, xmin, ymax, xmax] (normalized 0-1)
-                ymin, xmin, ymax, xmax = box
+                ymin, xmin, ymax, xmax = box[:4]
                 
+                # Clip to [0, 1]
+                ymin = max(0.0, min(1.0, float(ymin)))
+                xmin = max(0.0, min(1.0, float(xmin)))
+                ymax = max(0.0, min(1.0, float(ymax)))
+                xmax = max(0.0, min(1.0, float(xmax)))
+
+                if (ymax - ymin) < 0.05 or (xmax - xmin) < 0.05:
+                    continue # Too small
+
                 x = int(xmin * width)
                 y = int(ymin * height)
                 w = int((xmax - xmin) * width)
                 h = int((ymax - ymin) * height)
                 
                 bounding_boxes.append([x, y, w, h])
-                confidence_scores.append(float(confidence))
+                confidence_scores.append(float(conf))
             
+            # Sort by confidence
+            if bounding_boxes:
+                combined = sorted(zip(confidence_scores, bounding_boxes), reverse=True, key=lambda x: x[0])
+                confidence_scores = [c for c, b in combined]
+                bounding_boxes = [b for c, b in combined]
+
         except Exception as e:
             logger.error(f"Error parsing detections: {e}")
         

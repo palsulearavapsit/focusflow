@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Dict, Tuple, Optional
 from services.vision_pipeline import vision_pipeline
 
@@ -20,13 +21,26 @@ def load_models():
 
 
 def detect_face(image_bytes: bytes) -> Dict:
+    with open("face_hits.log", "a") as logf:
+        logf.write(f"Hit at {time.time()}\n")
     try:
         result = vision_pipeline.face_detector.detect_faces(image_bytes)
         
         face_detected = result.get('face_detected', False)
         face_count = result.get('face_count', 0)
+        conf_scores = result.get('confidence_scores', [])
+        max_conf = max(conf_scores) if conf_scores else 0.0
         
-        logger.info(f"📸 Face detection: {face_count} face(s) detected")
+        logger.info(f"📸 Face detection: {face_count} face(s) detected (Max conf: {max_conf:.2f})")
+        
+        # DEBUG: Save failed frames for inspection
+        if not face_detected:
+            with open("debug_face_fail.jpg", "wb") as f:
+                f.write(image_bytes)
+        else:
+            with open("debug_face_success.jpg", "wb") as f:
+                f.write(image_bytes)
+                
         return result
         
     except Exception as e:
@@ -328,76 +342,3 @@ def evaluate_fullscreen_violation(
         "message_to_user": message
     }
 
-
-def evaluate_study_room_policy(
-    total_participants: int,
-    current_participant_focus_score: float,
-    average_room_focus_score: float,
-    mic_status: str,
-    camera_status: str,
-    fullscreen_status: str,
-    distraction_events_last_5_min: int,
-    lock_mode_violations: int,
-    session_time_remaining_minutes: float
-) -> Dict:
-    
-    if mic_status == "ON":
-        return {
-            "action": "SOFT_NOTICE",
-            "penalty_percentage": 0.0,
-            "private_message": "This is a silent study room. Please mute your microphone to maintain focus.",
-            "room_message": None,
-            "reason": "Microphone turned on during silent study mode."
-        }
-    
-    if fullscreen_status == "INACTIVE":
-        if lock_mode_violations >= 3:
-            return {
-                "action": "APPLY_SCORE_PENALTY",
-                "penalty_percentage": 5.0,
-                "private_message": "Repeated fullscreen violations. Focus score penalty applied.",
-                "room_message": None,
-                "reason": "Repeated fullscreen exit (3+ attempts)."
-            }
-        elif lock_mode_violations == 2:
-            return {
-                "action": "WARNING",
-                "penalty_percentage": 0.0,
-                "private_message": "Please return to fullscreen mode immediately to avoid penalties.",
-                "room_message": None,
-                "reason": "Fullscreen inactive (2nd violation)."
-            }
-        else:
-            return {
-                "action": "SOFT_NOTICE",
-                "penalty_percentage": 0.0,
-                "private_message": "Please engage fullscreen mode for deep work.",
-                "room_message": None,
-                "reason": "Fullscreen inactive."
-            } 
-
-    if distraction_events_last_5_min >= 3:
-        return {
-            "action": "WARNING",
-            "penalty_percentage": 0.0,
-            "private_message": "We noticed multiple distractions. Try to settle in for the next block.",
-            "room_message": None,
-            "reason": "Frequent distraction events (>2 in 5 mins)."
-        }
-        
-    if total_participants > 1 and average_room_focus_score < 60.0 and session_time_remaining_minutes > 10:
-        return {
-            "action": "SUGGEST_GROUP_BREAK",
-            "penalty_percentage": 0.0,
-            "private_message": None,
-            "room_message": "Focus levels seem lower across the room. Let's take a 5-minute synchronized break and return stronger.",
-            "reason": "Average room focus score dropped below 60%."
-        }
-        
-    return {
-        "action": "NO_ACTION",
-        "penalty_percentage": 0.0,
-        "private_message": None,
-        "room_message": None,
-        "reason": "Behavior within policy limits."
-    }

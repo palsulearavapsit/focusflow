@@ -22,15 +22,26 @@ const CONFIG = {
     KEYBOARD_THRESHOLD: 60000,   // 60s
     LONG_PAUSE: 180000,          // 180s
     CAMERA_THRESHOLD: 120000,    // 120s
-    CHECK_INTERVAL: 1000         // 1s
+    CHECK_INTERVAL: 1000,        // 1s
+    DISTRACTION_COOLDOWN: 5000   // 5s cooldown between any two increment events
 };
 
+let listenersInitialized = false;
+
 function initializeDistractionDetection() {
+    if (listenersInitialized) return;
+
     // Setup event listeners
     document.addEventListener('mousemove', () => resetActivity('mouse'));
     document.addEventListener('keydown', () => resetActivity('keyboard'));
+
+    // Use a small flag to prevent double-counting visibility + blur in the same second
+    let lastTabSwitchTime = 0;
+
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden && distractionState.running) {
+        const now = Date.now();
+        if (document.hidden && distractionState.running && (now - lastTabSwitchTime > 1000)) {
+            lastTabSwitchTime = now;
             distractionState.tabSwitches++;
             checkDistraction('Tab switch detected (Hidden)');
         }
@@ -38,28 +49,37 @@ function initializeDistractionDetection() {
 
     // Detect Window Focus Loss (Side-by-side cheating)
     window.addEventListener('blur', () => {
-        if (distractionState.running) {
+        const now = Date.now();
+        if (distractionState.running && (now - lastTabSwitchTime > 1000)) {
+            lastTabSwitchTime = now;
             console.log("Window lost focus (Blur)");
-            // We give a grace period (e.g. 5s) in the loop, or detect instant switch
-            // For strictness, count as switch if prolonged.
-            // Let's increment tab switches immediately or set a flag
             distractionState.tabSwitches++;
             checkDistraction('Window focus lost');
         }
     });
+
+    listenersInitialized = true;
 }
 
 function startDistractionTracking(mode = 'screen') {
+    // Clear any existing interval before starting a new one
+    if (distractionState.detectionInterval) {
+        clearInterval(distractionState.detectionInterval);
+    }
+
     distractionState = {
         running: true,
         mode: mode,
         lastActivityTime: Date.now(),
+        lastDistractionTime: 0,
         mouseInactiveTime: 0,
         keyboardInactiveTime: 0,
         tabSwitches: 0,
         distractionCount: 0,
         currentState: 'focused',
-        cameraAbsenceTime: 0
+        cameraAbsenceTime: 0,
+        isFaceMissing: false,
+        isMultipleFaces: false
     };
 
     // Start loop
@@ -157,9 +177,6 @@ function updateDistractionLoop() {
 
     } else {
         // Book Study Mode: Expect inactivity
-        // Only classify as away if camera also misses user (which we can't fully check without Phase-2)
-        // For now, assume 'reading' if idle
-
         if (idleTime > 0) {
             distractionState.currentState = 'reading';
         }
@@ -167,7 +184,6 @@ function updateDistractionLoop() {
 
     // Camera Check
     if (isCameraActive() && typeof detectFacePresence === 'function' && typeof FACE_DETECTION_ENABLED !== 'undefined' && FACE_DETECTION_ENABLED) {
-        // Use a simple throttling mechanism to avoid overloading the backend (check every 5 seconds)
         const now = Date.now();
         if (!distractionState.lastFaceCheck || now - distractionState.lastFaceCheck > 5000) {
             distractionState.lastFaceCheck = now;
@@ -179,62 +195,62 @@ function updateDistractionLoop() {
                 // Run async without blocking the loop
                 detectFacePresence(videoEl).then(result => {
                     if (!result.face_detected) {
-                        console.log("⚠️ Face not detected!");
-                        if (statusBadge) {
-                            statusBadge.style.display = 'none';
-                        }
+                        console.log("⚠️ Distraction: Face not detected");
 
                         // We check every 5s, so add 5s to absence time
                         distractionState.cameraAbsenceTime += 5000;
-                        checkDistraction('Face not detected');
-                    } else {
-                        if (statusBadge) {
-                            statusBadge.style.display = 'inline-block';
-                            statusBadge.className = 'badge bg-success mb-2';
-                            statusBadge.innerText = '✅ Face Detected';
+
+                        // ONLY count as distraction ONCE when they first disappear
+                        if (!distractionState.isFaceMissing) {
+                            distractionState.isFaceMissing = true;
+                            checkDistraction('Face not detected');
                         }
+                    } else {
+                        // Face is back
+                        distractionState.isFaceMissing = false;
 
                         if (result.face_count > 1) {
-                            console.log("⚠️ Multiple faces detected!");
-                            if (statusBadge) {
-                                statusBadge.className = 'badge bg-warning text-dark mb-2';
-                                statusBadge.innerText = '⚠️ Multiple Faces';
+                            console.log("⚠️ Distraction: Multiple faces detected!");
+                            // ONLY count as distraction ONCE per occurrence
+                            if (!distractionState.isMultipleFaces) {
+                                distractionState.isMultipleFaces = true;
+                                checkDistraction('Multiple faces detected');
                             }
-                            // Optional: Penalize multiple faces
-                            checkDistraction('Multiple faces detected');
+                        } else {
+                            distractionState.isMultipleFaces = false;
                         }
                     }
                 }).catch(err => {
-                    console.error("Face check failed", err);
-                    if (statusBadge) {
-                        statusBadge.className = 'badge bg-secondary mb-2';
-                        statusBadge.innerText = '❓ Detection Error';
-                    }
+                    console.error("Distraction monitor: Face check failed", err);
                 });
 
                 // Eye Tracking Check
                 if (typeof detectEyePresence === 'function' && document.getElementById('eyeTrackingToggle')?.checked) {
                     detectEyePresence(videoEl).then(result => {
                         if (result.eyes_detected) {
-                            console.log("👀 Eyes detected");
+                            // console.log("👀 Eyes detected");
                         } else {
-                            console.log("⚠️ Eyes NOT detected");
-                            // checkDistraction('Eyes not detected'); 
+                            // console.log("⚠️ Eyes NOT detected");
                         }
                     }).catch(e => console.error("Eye check error", e));
                 }
             }
         }
-    } else if (isCameraActive()) {
-        // Fallback if ML disabled: just assume presence if stream is running
-        // No-op
     }
 }
 
 function checkDistraction(reason) {
-    // Basic debounce or logic to prevent spam
+    const now = Date.now();
+
+    // 1. Global Cooldown: Ignore spikes within 5 seconds of the last count
+    if (distractionState.lastDistractionTime && (now - distractionState.lastDistractionTime < CONFIG.DISTRACTION_COOLDOWN)) {
+        console.log(`⏳ Cooldown active: Ignoring distraction request (${reason})`);
+        return;
+    }
+
     distractionState.distractionCount++;
-    console.log(`Distraction counted: ${reason}`);
+    distractionState.lastDistractionTime = now;
+    console.log(`🚩 Distraction #${distractionState.distractionCount} counted: ${reason}`);
 }
 
 function showFocusAlert(msg) {

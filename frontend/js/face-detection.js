@@ -16,7 +16,7 @@
 let FACE_DETECTION_ENABLED = true;
 
 // Face detection state
-let faceDetectionInitialized = false;
+let faceDetectionInitialized = true; // Enabled by default for Backend Mode
 
 async function initializeFaceDetection() {
     console.log('✅ Face Detection Initialized (Backend Mode)');
@@ -25,9 +25,10 @@ async function initializeFaceDetection() {
 }
 
 async function detectFacePresence(videoElement) {
-    if (!faceDetectionInitialized || !videoElement || videoElement.paused || videoElement.ended) {
-        return { face_detected: false, confidence: 0.0, face_count: 0 };
-    }
+    if (!faceDetectionInitialized) return { face_detected: false, debug: 'Not Initialized' };
+    if (!videoElement) return { face_detected: false, debug: 'No Video Element' };
+    if (videoElement.paused) return { face_detected: false, debug: 'Video Paused' };
+    if (videoElement.ended) return { face_detected: false, debug: 'Video Ended' };
 
     try {
         // Capture frame
@@ -57,44 +58,23 @@ async function detectFacePresence(videoElement) {
             const data = await response.json();
             return data;
         } else {
-            // Silently fail if server busy/error
-            // Demo/Fallback: Return centered bounding box with slight movement
-            const width = videoElement.videoWidth || 640;
-            const height = videoElement.videoHeight || 480;
-            const size = Math.min(width, height) * 0.4; // Slightly smaller box
-
-            // Add slight random jitter to simulate tracking
-            const jitterX = (Math.random() - 0.5) * 10;
-            const jitterY = (Math.random() - 0.5) * 10;
-
-            const x = (width - size) / 2 + jitterX;
-            const y = (height - size) / 2 + jitterY;
-
+            // No fallback - return actual failure state
+            console.warn("Face detection API returned error status:", response.status);
             return {
-                face_detected: true,
-                confidence: 0.98,
-                face_count: 1,
-                bounding_box: [x, y, size, size]
+                face_detected: false,
+                confidence: 0.0,
+                face_count: 0,
+                bounding_box: null
             };
         }
     } catch (e) {
         console.error("Face detection error:", e);
-        // Demo/Fallback: Return centered bounding box with slight movement
-        const width = videoElement.videoWidth || 640;
-        const height = videoElement.videoHeight || 480;
-        const size = Math.min(width, height) * 0.4;
-
-        const jitterX = (Math.random() - 0.5) * 10;
-        const jitterY = (Math.random() - 0.5) * 10;
-
-        const x = (width - size) / 2 + jitterX;
-        const y = (height - size) / 2 + jitterY;
-
+        // No fallback - return actual failure state
         return {
-            face_detected: true,
-            confidence: 0.98,
-            face_count: 1,
-            bounding_box: [x, y, size, size]
+            face_detected: false,
+            confidence: 0.0,
+            face_count: 0,
+            bounding_box: null
         };
     }
 }
@@ -180,54 +160,54 @@ function startFaceDetectionLoop(videoElement) {
     const canvas = document.getElementById('faceOverlay');
     const badge = document.getElementById('faceStatusBadge');
 
-    if (!canvas || !videoElement) return;
+    if (!canvas || !videoElement) {
+        console.error("❌ Cannot start face detection: Canvas or Video element missing", { canvas, videoElement });
+        return;
+    }
 
-    // Match canvas size to video size
-    const updateCanvasSize = () => {
-        canvas.width = videoElement.clientWidth || videoElement.videoWidth;
-        canvas.height = videoElement.clientHeight || videoElement.videoHeight;
-    };
-
-    updateCanvasSize();
-    videoElement.addEventListener('resize', updateCanvasSize);
-    videoElement.addEventListener('loadedmetadata', updateCanvasSize);
-
-    console.log("Starting face detection loop...");
+    console.log("🚀 Starting High-Frequency Face Detection Loop (500ms)");
 
     let isProcessing = false;
 
-    // Initial State: No Face Detected
+    // Initial State: Searching...
     if (badge) {
-        badge.className = 'badge bg-warning mb-2';
-        badge.innerText = 'No Face Detected';
+        badge.className = 'badge bg-warning text-dark mb-2';
+        badge.innerText = `🔍 Searching (Backend: ${API_URL})...`;
+        badge.style.display = 'inline-block';
     }
 
     faceDetectionInterval = setInterval(async () => {
-        if (videoElement.paused || videoElement.ended || isProcessing) return;
+        if (videoElement.paused || videoElement.ended || isProcessing || !faceDetectionInitialized) return;
 
         isProcessing = true;
         try {
             const result = await detectFacePresence(videoElement);
 
-            // Draw Box (Green if detected)
+            // Draw Box (Green if detected, cleared if not)
             drawFaceOverlay(canvas, result, videoElement);
 
             // Update badge based on detection result
             if (badge) {
-                if (result.face_detected) {
+                if (result && result.face_detected) {
                     badge.className = 'badge bg-success mb-2';
-                    badge.innerText = `Face Detected (${Math.round((result.confidence || 0) * 100)}%)`;
+                    badge.innerText = `✅ Face Detected (${Math.round((result.confidence || 0) * 100)}%)`;
                 } else {
-                    badge.className = 'badge bg-warning mb-2';
-                    badge.innerText = 'No Face Detected';
+                    badge.className = 'badge bg-warning text-dark mb-2';
+                    const debugInfo = result && result.debug ? ` (${result.debug})` : '';
+                    badge.innerText = `⚠️ No Face Detected${debugInfo}`;
                 }
+                badge.style.display = 'inline-block';
             }
         } catch (e) {
-            console.error("Detection loop error", e);
+            console.error("❌ Detection loop error", e);
+            if (badge) {
+                badge.className = 'badge bg-danger mb-2';
+                badge.innerText = '❌ AI Engine Error';
+            }
         } finally {
             isProcessing = false;
         }
-    }, 100);
+    }, 500);
 }
 
 /**
@@ -252,46 +232,64 @@ function stopFaceDetectionLoop() {
  * Draw face bounding box and confidence on canvas
  */
 function drawFaceOverlay(canvas, result, videoElement) {
+    if (!canvas || !videoElement) return;
+
     const ctx = canvas.getContext('2d');
+
+    // Always sync internal resolution to display resolution for pixel perfection
+    if (canvas.width !== videoElement.clientWidth || canvas.height !== videoElement.clientHeight) {
+        canvas.width = videoElement.clientWidth;
+        canvas.height = videoElement.clientHeight;
+    }
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (result.face_detected && result.bounding_box) {
-        const [x, y, w, h] = result.bounding_box;
+    if (result && result.face_detected && result.bounding_box) {
+        let [x, y, w, h] = result.bounding_box;
         const confidence = result.confidence || 0.0;
 
-        // Scale coordinates if video display size differs from capture size
-        const scaleX = canvas.width / videoElement.videoWidth;
-        const scaleY = canvas.height / videoElement.videoHeight;
+        // Use capture-time resolution for scaling
+        // The frame was captured at videoWidth x videoHeight
+        const vWidth = videoElement.videoWidth || 640;
+        const vHeight = videoElement.videoHeight || 480;
+
+        // Scale coordinates to current display resolution
+        const scaleX = canvas.width / vWidth;
+        const scaleY = canvas.height / vHeight;
 
         const rectX = x * scaleX;
         const rectY = y * scaleY;
         const rectW = w * scaleX;
         const rectH = h * scaleY;
 
-        // Draw Box
-        ctx.strokeStyle = '#00ff00'; // Green
-        ctx.lineWidth = 3;
+        // Draw Box with explicit path
+        ctx.beginPath();
+        ctx.strokeStyle = '#00ff00'; // Neon Green
+        ctx.lineWidth = 4;
+        ctx.lineJoin = 'round';
 
         // Add glow effect
         ctx.shadowColor = '#00ff00';
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 15;
 
-        ctx.strokeRect(rectX, rectY, rectW, rectH);
+        ctx.rect(rectX, rectY, rectW, rectH);
+        ctx.stroke();
 
         // Reset shadow for text
         ctx.shadowBlur = 0;
 
-        // Draw Text Background
-        const text = `${Math.round(confidence * 100)}%`;
-        ctx.font = 'bold 16px Arial';
-        const textWidth = ctx.measureText(text).width + 10;
+        // Draw Status Label
+        const text = `FOCUS: ${Math.round(confidence * 100)}%`;
+        ctx.font = 'bold 14px Inter, sans-serif';
+        const textWidth = ctx.measureText(text).width + 12;
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(rectX, rectY - 25, textWidth, 25);
+        // Label Background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(rectX, rectY - 28, textWidth, 28);
 
-        // Draw Text
+        // Label Text
         ctx.fillStyle = '#00ff00';
-        ctx.fillText(text, rectX + 5, rectY - 7);
+        ctx.fillText(text, rectX + 6, rectY - 9);
     }
 }
 

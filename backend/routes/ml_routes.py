@@ -8,8 +8,6 @@ from schemas import (
     DistractionAlertResponse,
     FullscreenViolationRequest,
     FullscreenViolationResponse,
-    StudyRoomModerationRequest,
-    StudyRoomModerationResponse,
     CognitiveAnalysisRequest,
     CognitiveAnalysisResponse
 )
@@ -210,41 +208,7 @@ async def evaluate_fullscreen_violation_endpoint(
         )
 
 
-@router.post("/study-room-moderator", response_model=StudyRoomModerationResponse)
-async def evaluate_study_room_moderator_endpoint(
-    request: StudyRoomModerationRequest,
-    current_user: dict = Depends(get_current_student)
-):
-    try:
-        result = ml_utils.evaluate_study_room_policy(
-            total_participants=request.total_participants,
-            current_participant_focus_score=request.current_participant_focus_score,
-            average_room_focus_score=request.average_room_focus_score,
-            mic_status=request.mic_status,
-            camera_status=request.camera_status,
-            fullscreen_status=request.fullscreen_status,
-            distraction_events_last_5_min=request.distraction_events_last_5_min,
-            lock_mode_violations=request.lock_mode_violations,
-            session_time_remaining_minutes=request.session_time_remaining_minutes
-        )
-        
-        return StudyRoomModerationResponse(
-            action=result['action'],
-            penalty_percentage=result['penalty_percentage'],
-            private_message=result['private_message'],
-            room_message=result['room_message'],
-            reason=result['reason']
-        )
-        
-    except Exception as e:
-        logger.error(f"Study room moderator error: {e}")
-        return StudyRoomModerationResponse(
-            action="NO_ACTION",
-            penalty_percentage=0.0,
-            private_message=None,
-            room_message=None,
-            reason="Error evaluating moderator policy"
-        )
+
 
 
 @router.post("/cognitive-refresh", response_model=CognitiveAnalysisResponse)
