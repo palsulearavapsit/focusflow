@@ -6,7 +6,7 @@ services:
     startCommand: gunicorn -w 4 -k uvicorn.workers.UvicornWorker --chdir backend main:app
     envVars:
       - key: PYTHON_VERSION
-        value: 3.10.12
+        value: "3.10.12"
       - key: DB_HOST
         value: "REPLACE_WITH_DB_HOST"
       - key: DB_PORT
@@ -18,11 +18,10 @@ services:
       - key: DB_NAME
         value: "REPLACE_WITH_DB_NAME"
       - key: SECRET_KEY
-        generate_value: true
+        generateValue: true
       - key: CORS_ORIGINS
-        value: '["https://*.vercel.app", "http://localhost:3000"]'
+        value: "*"
       - key: GEMINI_API_KEY
         value: "OPTIONAL_KEY"
       - key: YOUTUBE_API_KEY
         value: "OPTIONAL_KEY"
-    # Optional: healthCheckPath: /health
