@@ -1,0 +1,8 @@
+backend/models/emotion_detection/*.h5
+backend/models/emotion_detection/*.bak
+backend/models/eye_tracking/*.task
+backend/models/face_detection/*.tflite
+venv/
+__pycache__/
+*.pyc
+.env
