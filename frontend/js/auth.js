@@ -5,8 +5,7 @@
 
 const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:8000'
-    : 'https://palsulearavapsit-focusflow-backend.hf.space';
-// Replace with your Render URL
+    : 'https://aravpal-focusflow-backend.hf.space';
 
 // Token management
 function getToken() {

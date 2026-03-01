@@ -1,3 +1,12 @@
+---
+title: Focusflow Backend
+emoji: 🚀
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+pinned: false
+---
+
 # FocusFlow
 
 FocusFlow is an intelligent study assistant application that uses computer vision to track user focus and engagement.
