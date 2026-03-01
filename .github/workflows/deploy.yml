@@ -18,6 +18,10 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          git lfs install
           git remote set-url origin https://aravpal:$HF_TOKEN@huggingface.co/spaces/aravpal/focusflow-backend
           git checkout -b main || git checkout main
+          git lfs track "backend/models/emotion_detection/*.h5"
+          git lfs track "backend/models/eye_tracking/*.task"
+          git lfs track "backend/models/face_detection/*.tflite"
           git push -u origin main --force
