@@ -8,15 +8,21 @@ services:
       - key: PYTHON_VERSION
         value: 3.10.12
       - key: DB_HOST
+        value: "REPLACE_WITH_DB_HOST"
       - key: DB_PORT
         value: "3306"
       - key: DB_USER
+        value: "REPLACE_WITH_DB_USER"
       - key: DB_PASSWORD
+        value: "REPLACE_WITH_DB_PASSWORD"
       - key: DB_NAME
+        value: "REPLACE_WITH_DB_NAME"
       - key: SECRET_KEY
         generate_value: true
       - key: CORS_ORIGINS
         value: '["https://*.vercel.app", "http://localhost:3000"]'
       - key: GEMINI_API_KEY
+        value: "OPTIONAL_KEY"
       - key: YOUTUBE_API_KEY
+        value: "OPTIONAL_KEY"
     # Optional: healthCheckPath: /health
