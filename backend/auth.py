@@ -60,5 +60,10 @@ async def check_admin_role(current_user: Dict = Depends(get_current_user)) -> Di
         )
     return current_user
 
+# Aliases for compatibility with existing routes
+get_current_student = get_current_user
+get_current_teacher = get_current_user
+get_current_admin = check_admin_role
+
 # Note: Your /api/auth/signup and /api/auth/login routes in auth_routes.py
 # should now use supabase.auth.sign_up() and supabase.auth.sign_in_with_password()

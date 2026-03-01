@@ -11,7 +11,7 @@ from schemas import (
     CognitiveAnalysisRequest,
     CognitiveAnalysisResponse
 )
-from auth import get_current_student
+from auth import get_current_user as get_current_student
 import ml_utils
 import logging
 
