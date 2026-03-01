@@ -18,5 +18,6 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git remote add hf https://aravpal:$HF_TOKEN@huggingface.co/spaces/aravpal/focusflow-backend
-          git push hf main --force
+          git remote set-url origin https://aravpal:$HF_TOKEN@huggingface.co/spaces/aravpal/focusflow-backend
+          git checkout -b main || git checkout main
+          git push -u origin main --force
