@@ -19,8 +19,9 @@ from schemas import (
     MessageResponse,
     UpdateRoleRequest
 )
-from auth import get_current_teacher, get_current_student, get_current_user
-import database as db
+from auth import get_current_user
+from database import db as supabase_db
+import database as db_helpers
 
 logger = logging.getLogger(__name__)
 

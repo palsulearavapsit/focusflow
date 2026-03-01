@@ -12,17 +12,13 @@ from schemas import (
     MessageResponse,
     UserSystemRoleUpdate
 )
-from auth import get_current_admin
+from auth import check_admin_role
 from database import (
+    db as supabase_db,
     get_all_users, 
     get_admin_statistics, 
-    get_session_statistics,
-    update_user_system_role,
-    delete_user,
     get_user_by_id,
-    get_all_classrooms,
-    delete_classroom,
-    get_classroom_by_id
+    create_classroom
 )
 import logging
 

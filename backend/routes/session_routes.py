@@ -12,8 +12,8 @@ from schemas import (
     SessionSummaryResponse,
     MessageResponse
 )
-from auth import get_current_student
-from database import create_session, get_user_sessions, update_session_score, update_user_streak, update_user_title_in_db, get_session_statistics
+from auth import get_current_user
+from database import create_session, get_user_sessions, db as supabase_db, update_user_streak
 from ml_utils import calculate_advanced_focus_score, determine_user_title
 from datetime import datetime
 import logging
@@ -30,7 +30,7 @@ active_sessions = {}
 @router.post("/start", response_model=MessageResponse)
 async def start_session(
     session_request: SessionStartRequest,
-    current_user: dict = Depends(get_current_student)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Start a new study session
@@ -90,7 +90,7 @@ async def start_session(
 @router.post("/end", response_model=SessionSummaryResponse)
 async def end_session(
     session_data: SessionEndRequest,
-    current_user: dict = Depends(get_current_student)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     End current study session and save results
@@ -145,16 +145,15 @@ async def end_session(
         }
         
         # Save session to database (initial focus score calculated by trigger)
-        session_id = create_session(complete_session_data)
+        session_result = create_session(complete_session_data)
+        session_id = session_result.get('id')
         
         # Calculate Advanced Focus Score (if metrics provided)
-        # Check if advanced metrics are present in the request
         advanced_score = None
         advanced_result = None
         if (session_data.sustained_attention_minutes is not None and 
             session_data.sustained_distraction_minutes is not None):
             
-            # Calculate duration in minutes (ensure non-zero)
             duration_min = max(session_data.duration / 60.0, 0.1)
             
             advanced_result = calculate_advanced_focus_score(
@@ -168,23 +167,17 @@ async def end_session(
             )
             
             advanced_score = advanced_result['focus_score']
-            logger.info(f"🧠 Advanced Focus Score Calculated: {advanced_score}")
-            logger.info(f"   Analysis: {advanced_result['analysis']}")
             
-            # Update database with new score (overriding trigger result)
-            update_session_score(session_id, advanced_score)
+            # Update database with new score
+            supabase_db.client.table("sessions").update({"focus_score": advanced_score}).eq("id", session_id).execute()
             
-            # Update Streak if focus score is decent (>50)
+            # Update Streak and Title
             if advanced_score >= 50:
                 update_user_streak(user_id)
             
-            # Re-calculate Title based on overall average
-            user_stats = get_session_statistics() # Returns list for all users, but we filter or get all if needed
-            user_stat = next((s for s in user_stats if s['user_id'] == user_id), None)
-            if user_stat:
-                new_title = determine_user_title(user_stat['avg_focus_score'], current_user['role'])
-                if new_title:
-                    update_user_title_in_db(user_id, new_title)
+            new_title = determine_user_title(advanced_score, current_user['role'])
+            if new_title:
+                supabase_db.client.table("profiles").update({"title": new_title}).eq("id", user_id).execute()
         
         
         # Get saved session with calculated focus score
@@ -248,7 +241,7 @@ async def end_session(
 @router.get("/history", response_model=List[SessionResponse])
 async def get_session_history(
     limit: int = 10,
-    current_user: dict = Depends(get_current_student)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Get user's session history
@@ -281,7 +274,7 @@ async def get_session_history(
 
 
 @router.get("/active")
-async def check_active_session(current_user: dict = Depends(get_current_student)):
+async def check_active_session(current_user: dict = Depends(get_current_user)):
     """
     Check if user has an active session
     
@@ -313,7 +306,7 @@ async def check_active_session(current_user: dict = Depends(get_current_student)
 
 
 @router.delete("/cancel", response_model=MessageResponse)
-async def cancel_session(current_user: dict = Depends(get_current_student)):
+async def cancel_session(current_user: dict = Depends(get_current_user)):
     """
     Cancel active session without saving
     

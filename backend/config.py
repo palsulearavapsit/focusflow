@@ -15,13 +15,10 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     
-    # Database Configuration
-    # UPDATE THESE VALUES WITH YOUR MYSQL CREDENTIALS
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 3306
-    DB_USER: str = "root"
-    DB_PASSWORD: str = "arav"  # CHANGE THIS
-    DB_NAME: str = "focusflow"
+    # Supabase Configuration
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = "" # Optional for admin tasks
 
     # ML Settings
     MODEL_PATH: str = "models/emotion_model.h5"

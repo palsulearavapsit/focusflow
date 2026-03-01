@@ -1,6 +1,6 @@
 """
-FocusFlow Authentication Routes
-Handles user signup and login endpoints
+FocusFlow Authentication Routes - Supabase Edition
+Refactored to use Supabase Auth SDK
 """
 
 from fastapi import APIRouter, HTTPException, status, Depends
@@ -8,129 +8,88 @@ from schemas import (
     UserSignupRequest,
     UserLoginRequest,
     TokenResponse,
-    UserResponse
+    UserBaseResponse
 )
-from auth import authenticate_user, create_user_token, hash_password, get_current_user
-from database import get_user_by_email, create_user
+from database import db as supabase_db, get_user_by_id
+from auth import get_current_user
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
-
 @router.post("/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def signup(user_data: UserSignupRequest):
     """
-    Register a new student account
-    
-    - **username**: Unique username (3-50 characters, alphanumeric)
-    - **email**: Valid email address
-    - **password**: Password (minimum 6 characters)
-    
-    Returns JWT token and user information
+    Register a new account via Supabase Auth
     """
     try:
-        # Check if email already exists
-        existing_user = get_user_by_email(user_data.email)
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
+        # Sign up with Supabase
+        response = supabase_db.client.auth.sign_up({
+            "email": user_data.email,
+            "password": user_data.password,
+            "options": {
+                "data": {
+                    "username": user_data.username,
+                    "role": user_data.role
+                }
+            }
+        })
+        
+        if not response.session:
+            # If email verification is enabled, session won't be returned immediately
+            return TokenResponse(
+                access_token="verification_required",
+                token_type="bearer",
+                user=UserBaseResponse(id="pending", username=user_data.username, email=user_data.email, role=user_data.role)
             )
-        
-        # Hash password
-        password_hash = hash_password(user_data.password)
-        
-        # Create user
-        user_id = create_user(
-            username=user_data.username,
-            email=user_data.email,
-            password_hash=password_hash,
-            role=user_data.role
-        )
-        
-        # Get created user
-        user = get_user_by_email(user_data.email)
-        
-        # Create JWT token
-        token = create_user_token(user)
-        
-        logger.info(f"✅ New user registered: {user_data.email}")
+
+        # Get the profile that was auto-created by the SQL trigger
+        profile = get_user_by_id(response.user.id)
         
         return TokenResponse(
-            access_token=token,
+            access_token=response.session.access_token,
             token_type="bearer",
-            user=UserResponse(**user)
+            user=profile or response.user
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"❌ Signup error: {e}")
+        logger.error(f"❌ Supabase signup error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Registration failed. Please try again."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
-
 
 @router.post("/login", response_model=TokenResponse)
 async def login(credentials: UserLoginRequest):
     """
-    Login with email and password
-    
-    - **email**: Registered email address
-    - **password**: User password
-    
-    Returns JWT token and user information
-    
-    **Admin Login:**
-    - Email: admin@focusflow.com
-    - Password: admin123
+    Login via Supabase Auth
     """
     try:
-        # Authenticate user
-        user = authenticate_user(credentials.email, credentials.password)
+        response = supabase_db.client.auth.sign_in_with_password({
+            "email": credentials.email,
+            "password": credentials.password
+        })
         
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        # Create JWT token
-        token = create_user_token(user)
-        
-        logger.info(f"✅ User logged in: {credentials.email} (Role: {user['role']})")
+        # Fetch detailed profile
+        profile = get_user_by_id(response.user.id)
         
         return TokenResponse(
-            access_token=token,
+            access_token=response.session.access_token,
             token_type="bearer",
-            user=UserResponse(**user)
+            user=profile
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"❌ Login error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Login failed. Please try again."
-        )
-
-
-@router.get("/verify", response_model=UserResponse)
-async def verify_token(current_user: dict = Depends(get_current_user)):
-    """
-    Verify JWT token and get current user
-    
-    Requires valid JWT token in Authorization header
-    """
-    if not current_user:
+        logger.error(f"❌ Supabase login error: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
+            detail="Incorrect email or password"
         )
-    
-    return UserResponse(**current_user)
+
+@router.get("/verify")
+async def verify_token(current_user: dict = Depends(get_current_user)):
+    """
+    Verify token and return profile
+    """
+    return current_user
