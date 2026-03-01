@@ -17,4 +17,6 @@ jobs:
       - name: Push to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://aravpal:$HF_TOKEN@huggingface.co/spaces/aravpal/focusflow-backend main
+        run: |
+          git remote add hf https://aravpal:$HF_TOKEN@huggingface.co/spaces/aravpal/focusflow-backend
+          git push hf main --force
