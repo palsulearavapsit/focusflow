@@ -81,10 +81,13 @@ async def login(credentials: UserLoginRequest):
         )
         
     except Exception as e:
-        logger.error(f"❌ Supabase login error: {e}")
+        logger.error(f"❌ Supabase login error for {credentials.email}: {e}")
+        # Log if client is None
+        if not supabase_db.client:
+            logger.error("⚠️ Supabase client is NOT initialized. Check SUPABASE_URL and SUPABASE_KEY secrets.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password"
+            detail=f"Login failed: {str(e)}" if settings.DEBUG else "Incorrect email or password"
         )
 
 @router.get("/verify")
