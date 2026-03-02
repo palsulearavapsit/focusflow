@@ -4,7 +4,7 @@ Data validation and serialization models
 """
 
 from pydantic import BaseModel, EmailStr, Field, validator
-from typing import Optional, Literal, List
+from typing import Optional, Literal, List, Union
 from datetime import datetime
 from enum import Enum
 
@@ -99,12 +99,20 @@ class SessionEndRequest(BaseModel):
 
 
 # Response Models
-class UserResponse(BaseModel):
-    """User response model"""
-    id: int
+class UserBaseResponse(BaseModel):
+    """Base user response model with string ID for Supabase"""
+    id: str
     username: str
     email: str
     role: UserRole
+    created_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class UserResponse(UserBaseResponse):
+    """Full user response model"""
     streak_count: int = 0
     max_streak: int = 0
     title: Optional[str] = "Novice FocusFlow"
@@ -118,13 +126,13 @@ class TokenResponse(BaseModel):
     """JWT token response"""
     access_token: str
     token_type: str = "bearer"
-    user: UserResponse
+    user: Union[UserResponse, UserBaseResponse]
 
 
 class SessionResponse(BaseModel):
     """Study session response"""
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     technique: StudyTechnique
     study_mode: StudyMode
     camera_enabled: bool  # When True, all CV features were active
@@ -148,7 +156,7 @@ class SessionResponse(BaseModel):
 
 class SessionSummaryResponse(BaseModel):
     """Session summary for frontend display"""
-    session_id: int
+    session_id: str
     technique: str
     study_mode: str
     duration_minutes: int
@@ -185,7 +193,7 @@ class AdminStatisticsResponse(BaseModel):
 
 class UserStatisticsResponse(BaseModel):
     """User statistics for admin view"""
-    user_id: int
+    user_id: str
     username: str
     email: str
     total_sessions: int
@@ -297,17 +305,17 @@ class JoinClassroomRequest(BaseModel):
 
 class ClassroomResponse(BaseModel):
     """Classroom response model"""
-    id: int
+    id: str
     name: str
     code: str
-    teacher_id: int
+    teacher_id: str
     teacher_name: Optional[str] = None
     created_at: datetime
     student_count: Optional[int] = 0
 
 class ClassroomStudentStats(BaseModel):
     """Stats for a student in a specific classroom"""
-    student_id: int
+    student_id: str
     username: str
     role: Optional[str] = "student"
     total_sessions: int
