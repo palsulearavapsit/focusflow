@@ -3,12 +3,12 @@ uvicorn==0.27.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
-supabase==2.3.0
-pydantic==2.5.3
-pydantic-settings==2.1.0
+supabase>=2.3.0
+pydantic>=2.9.0
+pydantic-settings>=2.1.0
 email-validator>=2.1.0
 python-dotenv==1.0.0
-httpx>=0.24.0,<0.26.0
+httpx>=0.28.1
 requests==2.31.0
 
 # AI / Gemini API
