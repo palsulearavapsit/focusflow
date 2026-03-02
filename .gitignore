@@ -55,9 +55,9 @@ Thumbs.db
 *.swo
 
 # ML Models (large files)
-backend/models/*.h5
-backend/models/*.tflite
-backend/models/*.task
+# backend/models/*.h5
+# backend/models/*.tflite
+# backend/models/*.task
 !backend/models/.gitkeep
 
 # Testing
