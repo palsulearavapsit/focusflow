@@ -780,25 +780,19 @@ function showSummary(summary) {
     }
 
     // 2. Consistency (Max 30)
-    // Formula: Max(0, 30 - (d * 2))
-    const scoreConst = Math.max(0, 30 - (distCount * 2));
+    // Formula: Max(0, 30 - (tab_switches * 3))
+    const scoreConst = Math.max(0, 30 - ((summary.tab_switches || 0) * 3));
     const constEl = document.getElementById('scoreConsistency');
     if (constEl) constEl.innerText = `${scoreConst}/30`;
 
     // 3. Camera (Max 20)
     let scoreCam = 15; // Default without camera
     if (summary.camera_enabled) {
-        // We lack exact absence time in seconds here, but let's estimate
-        // If score is high and distractions low, assume good presence?
-        // Actually, let's just reverse engineer: Total - (Idle + Dist + Const)
-        // Or just display "20/20" if enabled for now as estimation
-        // Better: Use the 15/20 base logic
-        scoreCam = 20; // Assume perfect if enabled for display simplicity
-        // Or calculate: (1 - absence/duration) * 20
-        if (summary.camera_absence_minutes > 0 && summary.duration_minutes > 0) {
-            const ratio = summary.camera_absence_minutes / summary.duration_minutes;
-            scoreCam = Math.round((1 - ratio) * 20);
-        }
+        // Calculate: (1 - absence/duration) * 20
+        const durationSecs = summary.duration || 1;
+        const absenceSecs = summary.camera_absence_time || 0;
+        const ratio = Math.min(1, absenceSecs / durationSecs);
+        scoreCam = Math.round((1 - ratio) * 20);
     }
     const camEl = document.getElementById('scoreCamera');
     if (camEl) {
@@ -807,11 +801,24 @@ function showSummary(summary) {
     }
 
     // 4. Idle (Max 10)
-    // Formula: (1 - idle%) * 10
+    // Studying naturally has low mouse/keyboard activity.
+    // Only penalize if idle% is very high (>60%). Otherwise give full marks.
+    // 0–40% idle  → 10/10 (normal study reading)
+    // 40–60% idle → 8–10 (slight penalty)
+    // 60–100% idle → 0–8 (actual idleness)
     const idleP = summary.idle_time_percentage || 0; // 0 to 100
-    const scoreIdle = Math.round((1 - (idleP / 100)) * 10);
+    let scoreIdle;
+    if (idleP <= 40) {
+        scoreIdle = 10;
+    } else if (idleP <= 60) {
+        scoreIdle = Math.round(10 - ((idleP - 40) / 20) * 2); // 10 → 8
+    } else {
+        scoreIdle = Math.round(8 - ((idleP - 60) / 40) * 8);  // 8 → 0
+        scoreIdle = Math.max(0, scoreIdle);
+    }
     const idleEl = document.getElementById('scoreIdle');
     if (idleEl) idleEl.innerText = `${scoreIdle}/10`;
+
 
     // Dynamically inject dashboard button (to bypass HTML caching issues)
     const btnContainer = document.getElementById('dashboard-btn-container');

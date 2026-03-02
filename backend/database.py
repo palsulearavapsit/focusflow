@@ -1,107 +1,531 @@
 """
-FocusFlow Supabase Database Module
-Replaces MySQL connection with Supabase client
+FocusFlow MySQL Database Module
+Uses SQLAlchemy + mysql-connector-python
 """
 
-from supabase import create_client, Client
+import mysql.connector
+from mysql.connector import Error
 from typing import Optional, List, Dict, Any
 from config import settings
 import logging
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def get_connection():
+    """Get a new MySQL connection"""
+    return mysql.connector.connect(
+        host=settings.DB_HOST,
+        port=int(settings.DB_PORT),
+        user=settings.DB_USER,
+        password=settings.DB_PASSWORD,
+        database=settings.DB_NAME,
+        charset='utf8mb4'
+    )
+
+
 class Database:
-    """Supabase Client wrapper for FocusFlow"""
-    
-    def __init__(self):
-        """Initialize Supabase client"""
-        if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
-            logger.warning("⚠️ Supabase URL or Key missing in config")
-            self.client = None
-            return
-            
-        try:
-            self.client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-            logger.info("✅ Supabase connection initialized")
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize Supabase: {e}")
-            self.client = None
+    """MySQL wrapper for FocusFlow"""
 
     def test_connection(self) -> bool:
-        """Test database connection (via fetching first user)"""
-        if not self.client: return False
+        """Test database connection"""
         try:
-            # Simple test query to 'profiles' table
-            self.client.table("profiles").select("id").limit(1).execute()
+            conn = get_connection()
+            conn.close()
+            logger.info("✅ MySQL connection OK")
             return True
         except Exception as e:
-            logger.error(f"❌ Supabase test failed: {e}")
+            logger.error(f"❌ MySQL connection failed: {e}")
             return False
+
 
 # Global database instance
 db = Database()
 
-# Helper Functions using Supabase API
 
-def get_user_by_id(user_id: str) -> Optional[Dict]:
-    """Get profile by UUID"""
-    response = db.client.table("profiles").select("*").eq("id", user_id).single().execute()
-    return response.data if response.data else None
+# ─── Helper Functions ────────────────────────────────────────────────────────
+
+def get_user_by_id(user_id: int) -> Optional[Dict]:
+    """Get user by ID"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close(); conn.close()
+
 
 def get_user_by_email(email: str) -> Optional[Dict]:
-    """Get profile by email"""
-    response = db.client.table("profiles").select("*").eq("email", email).execute()
-    return response.data[0] if response.data else None
+    """Get user by email"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+        return cursor.fetchone()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_user_by_username(username: str) -> Optional[Dict]:
+    """Get user by username"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+        return cursor.fetchone()
+    finally:
+        cursor.close(); conn.close()
+
+
+def create_user(username: str, email: str, password_hash: str, role: str = "student") -> Dict:
+    """Create a new user"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "INSERT INTO users (username, email, password_hash, role) VALUES (%s, %s, %s, %s)",
+            (username, email, password_hash, role)
+        )
+        conn.commit()
+        user_id = cursor.lastrowid
+        return get_user_by_id(user_id)
+    finally:
+        cursor.close(); conn.close()
+
 
 def create_session(session_data: Dict) -> Dict:
-    """Create a new study session"""
-    response = db.client.table("sessions").insert(session_data).execute()
-    return response.data[0] if response.data else {}
+    """Create a new study session (focus_score calculated by MySQL trigger)"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        sql = """
+            INSERT INTO sessions
+            (user_id, technique, study_mode, camera_enabled, face_detection_enabled,
+             emotion_detection_enabled, classroom_id, duration, distractions,
+             mouse_inactive_time, keyboard_inactive_time, tab_switches,
+             camera_absence_time, face_absence_time, dominant_emotion,
+             emotion_confidence, user_state)
+            VALUES
+            (%(user_id)s, %(technique)s, %(study_mode)s, %(camera_enabled)s,
+             %(face_detection_enabled)s, %(emotion_detection_enabled)s,
+             %(classroom_id)s, %(duration)s, %(distractions)s,
+             %(mouse_inactive_time)s, %(keyboard_inactive_time)s, %(tab_switches)s,
+             %(camera_absence_time)s, %(face_absence_time)s, %(dominant_emotion)s,
+             %(emotion_confidence)s, %(user_state)s)
+        """
+        cursor.execute(sql, session_data)
+        conn.commit()
+        session_id = cursor.lastrowid
+        # Fetch back the saved session (includes trigger-calculated focus_score)
+        cursor.execute("SELECT * FROM sessions WHERE id = %s", (session_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close(); conn.close()
 
-def get_user_sessions(user_id: str, limit: int = 10) -> List[Dict]:
+
+def update_session_focus_score(session_id: int, focus_score: float):
+    """Update a session's focus score"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE sessions SET focus_score = %s WHERE id = %s",
+            (focus_score, session_id)
+        )
+        conn.commit()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_user_sessions(user_id: int, limit: int = 10) -> List[Dict]:
     """Get user's session history"""
-    response = db.client.table("sessions").select("*").eq("user_id", user_id).order("timestamp", desc=True).limit(limit).execute()
-    return response.data if response.data else []
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT * FROM sessions WHERE user_id = %s ORDER BY timestamp DESC LIMIT %s",
+            (user_id, limit)
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close(); conn.close()
+
 
 def get_admin_statistics() -> Dict:
-    """Get stats using RPC (Stored Procedure) or direct count"""
-    # Simple direct counts for now
-    students = db.client.table("profiles").select("id", count="exact").eq("role", "student").execute()
-    sessions = db.client.table("sessions").select("id", count="exact").execute()
-    return {
-        "total_students": students.count,
-        "total_sessions": sessions.count
-    }
+    """Get aggregated platform statistics"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT
+                (SELECT COUNT(*) FROM users WHERE role = 'student') AS total_students,
+                (SELECT COUNT(*) FROM sessions) AS total_sessions,
+                (SELECT AVG(focus_score) FROM sessions) AS overall_avg_focus_score,
+                (SELECT COALESCE(SUM(duration), 0) FROM sessions) AS total_study_time_all_users,
+                (SELECT COUNT(*) FROM sessions WHERE camera_enabled = TRUE) AS sessions_with_camera_enabled,
+                (SELECT technique FROM sessions GROUP BY technique ORDER BY COUNT(*) DESC LIMIT 1) AS most_popular_technique,
+                (SELECT study_mode FROM sessions GROUP BY study_mode ORDER BY COUNT(*) DESC LIMIT 1) AS most_popular_mode
+        """)
+        row = cursor.fetchone()
+        # Ensure numeric nulls become 0
+        row['total_students'] = row['total_students'] or 0
+        row['total_sessions'] = row['total_sessions'] or 0
+        row['total_study_time_all_users'] = row['total_study_time_all_users'] or 0
+        row['sessions_with_camera_enabled'] = row['sessions_with_camera_enabled'] or 0
+        row['overall_avg_focus_score'] = float(row['overall_avg_focus_score']) if row['overall_avg_focus_score'] else None
+        return row
+    finally:
+        cursor.close(); conn.close()
 
-def create_classroom(name: str, code: str, teacher_id: str) -> Dict:
+
+def get_all_users() -> List[Dict]:
+    """Get all users"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, username, email, role, streak_count, max_streak, title, created_at FROM users")
+        return cursor.fetchall()
+    finally:
+        cursor.close(); conn.close()
+
+
+def delete_user(user_id: int):
+    """Delete a user"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        conn.commit()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_all_sessions(limit: int = 50) -> List[Dict]:
+    """Get all sessions with user info"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT s.*, u.username, u.email
+            FROM sessions s
+            JOIN users u ON s.user_id = u.id
+            ORDER BY s.timestamp DESC
+            LIMIT %s
+        """, (limit,))
+        return cursor.fetchall()
+    finally:
+        cursor.close(); conn.close()
+
+def get_all_user_statistics() -> List[Dict]:
+    """Get aggregated statistics for all users for admin dashboard"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT 
+                u.id AS user_id, 
+                u.username, 
+                COUNT(s.id) AS total_sessions,
+                COALESCE(SUM(s.duration), 0) AS total_study_time,
+                COALESCE(AVG(s.focus_score), 0) AS avg_focus_score,
+                COALESCE(SUM(s.distractions), 0) AS total_distractions,
+                (SELECT technique FROM sessions WHERE user_id = u.id GROUP BY technique ORDER BY COUNT(*) DESC LIMIT 1) AS most_used_technique,
+                COUNT(CASE WHEN s.camera_enabled = TRUE THEN 1 END) AS sessions_with_camera
+            FROM users u
+            LEFT JOIN sessions s ON u.id = s.user_id
+            GROUP BY u.id, u.username
+        """)
+        rows = cursor.fetchall()
+        for row in rows:
+            row['avg_focus_score'] = float(row['avg_focus_score']) if row['avg_focus_score'] else 0.0
+            row['total_study_time'] = int(row['total_study_time'])
+            row['total_sessions'] = int(row['total_sessions'])
+            row['total_distractions'] = int(row['total_distractions'])
+        return rows
+    finally:
+        cursor.close(); conn.close()
+
+
+def update_user_system_role(user_id: int, role: str):
+    """Update user's system role (student, teacher, admin)"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET role = %s WHERE id = %s", (role, user_id))
+        conn.commit()
+    finally:
+        cursor.close(); conn.close()
+
+
+def create_classroom(name: str, code: str, teacher_id: int) -> Dict:
     """Create a new classroom"""
-    data = {"name": name, "code": code, "teacher_id": teacher_id}
-    response = db.client.table("classrooms").insert(data).execute()
-    return response.data[0] if response.data else {}
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "INSERT INTO classrooms (name, code, teacher_id) VALUES (%s, %s, %s)",
+            (name, code, teacher_id)
+        )
+        conn.commit()
+        classroom_id = cursor.lastrowid
+        cursor.execute("SELECT * FROM classrooms WHERE id = %s", (classroom_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close(); conn.close()
+
 
 def get_classroom_by_code(code: str) -> Optional[Dict]:
     """Get classroom by code"""
-    response = db.client.table("classrooms").select("*").eq("code", code).execute()
-    return response.data[0] if response.data else None
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM classrooms WHERE code = %s", (code,))
+        return cursor.fetchone()
+    finally:
+        cursor.close(); conn.close()
 
-def add_student_to_classroom(classroom_id: str, student_id: str):
+
+def add_student_to_classroom(classroom_id: int, student_id: int):
     """Enroll student in classroom"""
-    data = {"classroom_id": classroom_id, "student_id": student_id}
-    db.client.table("classroom_students").insert(data).execute()
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT IGNORE INTO classroom_students (classroom_id, student_id) VALUES (%s, %s)",
+            (classroom_id, student_id)
+        )
+        conn.commit()
+    finally:
+        cursor.close(); conn.close()
 
-def get_teacher_classrooms(teacher_id: str) -> List[Dict]:
-    """Get classrooms created by teacher"""
-    response = db.client.table("classrooms").select("*, classroom_students(count)").eq("teacher_id", teacher_id).execute()
-    return response.data if response.data else []
 
-def update_user_streak(user_id: str):
-    """
-    Supabase Trigger usually handles this, but here's the API-way
-    Supabase's 'profiles' table will store this.
-    """
+def get_teacher_classrooms(teacher_id: int) -> List[Dict]:
+    """Get classrooms created by teacher with student count"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT c.*, COUNT(cs.student_id) AS student_count
+            FROM classrooms c
+            LEFT JOIN classroom_students cs ON c.id = cs.classroom_id
+            WHERE c.teacher_id = %s
+            GROUP BY c.id
+        """, (teacher_id,))
+        return cursor.fetchall()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_classroom_detail(classroom_id: int) -> Optional[Dict]:
+    """Get classroom info + per-student session stats for the teacher dashboard page"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        # Basic classroom info
+        cursor.execute("SELECT * FROM classrooms WHERE id = %s", (classroom_id,))
+        classroom = cursor.fetchone()
+        if not classroom:
+            return None
+
+        # Students with aggregated stats
+        cursor.execute("""
+            SELECT
+                u.id AS student_id,
+                u.username,
+                u.email,
+                cs.role,
+                COUNT(s.id)                     AS total_sessions,
+                COALESCE(SUM(s.duration), 0)    AS total_study_time,
+                COALESCE(AVG(s.focus_score), 0) AS avg_focus_score
+            FROM classroom_students cs
+            JOIN users u ON cs.student_id = u.id
+            LEFT JOIN sessions s
+                ON s.user_id = cs.student_id AND s.classroom_id = %s
+            WHERE cs.classroom_id = %s
+            GROUP BY u.id, u.username, u.email, cs.role
+            ORDER BY avg_focus_score DESC
+        """, (classroom_id, classroom_id))
+        students = cursor.fetchall()
+
+        return {"classroom": classroom, "students": students}
+    finally:
+        cursor.close(); conn.close()
+
+
+def remove_student_from_classroom(classroom_id: int, student_id: int):
+    """Remove a student from a classroom"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM classroom_students WHERE classroom_id = %s AND student_id = %s",
+            (classroom_id, student_id)
+        )
+        conn.commit()
+    finally:
+        cursor.close(); conn.close()
+
+
+def update_student_role_in_classroom(classroom_id: int, student_id: int, role: str):
+    """Update a student's role in a classroom"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE classroom_students SET role = %s WHERE classroom_id = %s AND student_id = %s",
+            (role, classroom_id, student_id)
+        )
+        conn.commit()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_student_classroom_sessions(classroom_id: int, student_id: int) -> List[Dict]:
+    """Get all sessions of a student within a specific classroom"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT * FROM sessions WHERE classroom_id = %s AND user_id = %s ORDER BY timestamp DESC",
+            (classroom_id, student_id)
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_student_classrooms(student_id: int) -> List[Dict]:
+    """Get classrooms a student has joined"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT c.*, COUNT(cs2.student_id) AS student_count
+            FROM classroom_students cs
+            JOIN classrooms c ON cs.classroom_id = c.id
+            LEFT JOIN classroom_students cs2 ON c.id = cs2.classroom_id
+            WHERE cs.student_id = %s
+            GROUP BY c.id
+        """, (student_id,))
+        return cursor.fetchall()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_all_classrooms() -> List[Dict]:
+    """Get all classrooms (admin)"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT c.*, u.username AS teacher_name, COUNT(cs.student_id) AS student_count
+            FROM classrooms c
+            JOIN users u ON c.teacher_id = u.id
+            LEFT JOIN classroom_students cs ON c.id = cs.classroom_id
+            GROUP BY c.id
+        """)
+        return cursor.fetchall()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_classroom_sessions(classroom_id: int, user_id: Optional[int] = None) -> List[Dict]:
+    """Get sessions for a classroom (optionally filtered by student)"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        if user_id:
+            cursor.execute(
+                "SELECT * FROM sessions WHERE classroom_id = %s AND user_id = %s ORDER BY timestamp DESC",
+                (classroom_id, user_id)
+            )
+        else:
+            cursor.execute(
+                "SELECT * FROM sessions WHERE classroom_id = %s ORDER BY timestamp DESC",
+                (classroom_id,)
+            )
+        return cursor.fetchall()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_teacher_students(teacher_id: int) -> List[Dict]:
+    """Get all distinct students in teacher's classrooms with their class names"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT 
+                u.id, 
+                u.username, 
+                u.email, 
+                u.role, 
+                u.streak_count, 
+                u.title,
+                GROUP_CONCAT(c.name SEPARATOR ', ') AS enrolled_classes
+            FROM classroom_students cs
+            JOIN classrooms c ON cs.classroom_id = c.id
+            JOIN users u ON cs.student_id = u.id
+            WHERE c.teacher_id = %s
+            GROUP BY u.id, u.username, u.email, u.role, u.streak_count, u.title
+        """, (teacher_id,))
+        return cursor.fetchall()
+    finally:
+        cursor.close(); conn.close()
+
+
+def delete_classroom(classroom_id: int):
+    """Delete a classroom (cascades happen in DB)"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM classrooms WHERE id = %s", (classroom_id,))
+        conn.commit()
+    finally:
+        cursor.close(); conn.close()
+
+
+def update_user_streak(user_id: int):
+    """Update user streak based on study activity"""
     from datetime import date
-    today = date.today().isoformat()
-    db.client.table("profiles").update({"last_study_date": today}).eq("id", user_id).execute()
-    # Note: Complex streak logic is better in SQL Function in Supabase
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT last_study_date, streak_count, max_streak FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+        if not user:
+            return
+
+        today = date.today()
+        last_date = user.get('last_study_date')
+        streak = user.get('streak_count', 0)
+        max_streak = user.get('max_streak', 0)
+
+        if last_date is None or (today - last_date).days > 1:
+            streak = 1  # Reset
+        elif (today - last_date).days == 1:
+            streak += 1  # Consecutive day
+
+        max_streak = max(max_streak, streak)
+
+        cursor.execute(
+            "UPDATE users SET last_study_date = %s, streak_count = %s, max_streak = %s WHERE id = %s",
+            (today, streak, max_streak, user_id)
+        )
+        conn.commit()
+    finally:
+        cursor.close(); conn.close()
+
+
+def update_user_title(user_id: int, title: str):
+    """Update user's display title"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET title = %s WHERE id = %s", (title, user_id))
+        conn.commit()
+    finally:
+        cursor.close(); conn.close()

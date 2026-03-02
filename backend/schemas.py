@@ -100,8 +100,8 @@ class SessionEndRequest(BaseModel):
 
 # Response Models
 class UserBaseResponse(BaseModel):
-    """Base user response model with string ID for Supabase"""
-    id: str
+    """Base user response model"""
+    id: Union[str, int]
     username: str
     email: str
     role: UserRole
@@ -131,11 +131,11 @@ class TokenResponse(BaseModel):
 
 class SessionResponse(BaseModel):
     """Study session response"""
-    id: str
-    user_id: str
+    id: Union[str, int]
+    user_id: Union[str, int]
     technique: StudyTechnique
     study_mode: StudyMode
-    camera_enabled: bool  # When True, all CV features were active
+    camera_enabled: bool
     duration: int
     distractions: int
     focus_score: float
@@ -156,14 +156,16 @@ class SessionResponse(BaseModel):
 
 class SessionSummaryResponse(BaseModel):
     """Session summary for frontend display"""
-    session_id: str
+    session_id: Union[str, int]
     technique: str
     study_mode: str
     duration_minutes: int
     focus_score: float
     distractions: int
     user_state: str
-    camera_enabled: bool  # When True, all CV features were active
+    camera_enabled: bool
+    face_detection_enabled: bool = False
+    emotion_detection_enabled: bool = False
     dominant_emotion: str
     recommended_technique: Optional[str]
     timestamp: datetime
@@ -172,7 +174,7 @@ class SessionSummaryResponse(BaseModel):
     idle_time_percentage: float
     tab_switches: int
     camera_absence_minutes: int
-    face_absence_minutes: int  # Phase-2
+    face_absence_minutes: int
     
     # Advanced Analytics
     analysis: Optional[str] = None
@@ -193,7 +195,7 @@ class AdminStatisticsResponse(BaseModel):
 
 class UserStatisticsResponse(BaseModel):
     """User statistics for admin view"""
-    user_id: str
+    user_id: Union[str, int]
     username: str
     email: str
     total_sessions: int
@@ -305,17 +307,17 @@ class JoinClassroomRequest(BaseModel):
 
 class ClassroomResponse(BaseModel):
     """Classroom response model"""
-    id: str
+    id: Union[str, int]
     name: str
     code: str
-    teacher_id: str
+    teacher_id: Union[str, int]
     teacher_name: Optional[str] = None
     created_at: datetime
     student_count: Optional[int] = 0
 
 class ClassroomStudentStats(BaseModel):
     """Stats for a student in a specific classroom"""
-    student_id: str
+    student_id: Union[str, int]
     username: str
     role: Optional[str] = "student"
     total_sessions: int

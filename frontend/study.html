@@ -79,6 +79,17 @@
             display: block;
         }
 
+        /* Face detection green glow on camera window */
+        .camera-wrapper {
+            transition: box-shadow 0.3s ease, border-color 0.3s ease;
+            border: 3px solid transparent;
+        }
+
+        .camera-wrapper.face-detected {
+            border-color: #00ff88;
+            box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.25), 0 0 24px rgba(0, 255, 136, 0.4) !important;
+        }
+
         .alert-banner {
             position: fixed;
             top: 20px;
@@ -377,12 +388,11 @@
                             <div id="cameraContainer" class="hidden text-center mt-4">
                                 <h5 class="mb-3">Camera Monitor</h5>
                                 <div id="faceStatusBadge" class="badge bg-secondary mb-2">Initialize Camera...</div>
-                                <div class="camera-wrapper"
+                                <div class="camera-wrapper" id="cameraWrapper"
                                     style="position: relative; display: inline-block; max-width: 640px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 0 30px rgba(0,0,0,0.6); background: #000;">
                                     <video id="cameraPreview" autoplay muted
                                         style="display: block; width: 100%; height: auto; max-width: 100%; border-radius: 12px;"></video>
-                                    <canvas id="faceOverlay"
-                                        style="position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; pointer-events: none !important; z-index: 999 !important; display: block !important;"></canvas>
+                                    <canvas id="faceOverlay" style="display: none !important;"></canvas>
                                 </div>
                                 <p class="text-muted mt-2">
                                     <small>🔒 Privacy: No recording, all processing is local</small>
@@ -543,14 +553,14 @@
         </div>
 
         <!-- Modules -->
-        <script src="js/auth.js?v=10"></script>
-        <script src="js/camera.js?v=10"></script>
-        <script src="js/face-detection.js?v=10"></script>
-        <script src="js/eye-detection.js?v=10"></script>
-        <script src="js/emotion-detection.js?v=10"></script>
-        <script src="js/distraction.js?v=10"></script>
-        <script src="js/study.js?v=10"></script>
-        <script src="js/tools_panel.js?v=10"></script>
+        <script src="js/auth.js?v=11"></script>
+        <script src="js/camera.js?v=11"></script>
+        <script src="js/face-detection.js?v=11"></script>
+        <script src="js/eye-detection.js?v=11"></script>
+        <script src="js/emotion-detection.js?v=11"></script>
+        <script src="js/distraction.js?v=11"></script>
+        <script src="js/study.js?v=12"></script>
+        <script src="js/tools_panel.js?v=11"></script>
 
         <script>
             function toggleSidebar() {

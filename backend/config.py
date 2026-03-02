@@ -15,20 +15,17 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     
-    # Supabase Configuration
-    SUPABASE_URL: str = ""
-    SUPABASE_KEY: str = ""
-    SUPABASE_SERVICE_ROLE_KEY: str = "" # Optional for admin tasks
+    # MySQL Configuration
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 3306
+    DB_USER: str = "root"
+    DB_PASSWORD: str = ""
+    DB_NAME: str = "focusflow"
 
     # ML Settings
     MODEL_PATH: str = "models/emotion_model.h5"
     GEMINI_API_KEY: str = ""
     YOUTUBE_API_KEY: str = ""
-
-    @property
-    def DATABASE_URL(self) -> str:
-        """Construct database URL from components"""
-        return f"mysql+mysqlconnector://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
     
     # JWT Configuration
     # IMPORTANT: Generate a secure secret key for production
@@ -83,7 +80,8 @@ class Settings(BaseSettings):
     EMOTION_WEIGHT: float = 0.05        # Will be used in Phase-2
     
     class Config:
-        env_file = ".env"
+        import os
+        env_file = os.path.join(os.path.dirname(__file__), ".env")
         case_sensitive = True
 
 

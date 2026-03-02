@@ -33,7 +33,8 @@ async def detect_face_endpoint(
         
         if result.get("face_detected") and result.get("bounding_boxes"):
             bbox = result["bounding_boxes"][0]
-            confidence = result.get("confidence_scores", [0.0])[0]
+            raw_conf = result.get("confidence_scores", [0.0])[0]
+            confidence = min(1.0, float(raw_conf))   # Always 0–1
         
         return FaceDetectionResult(
             face_detected=result.get("face_detected", False),

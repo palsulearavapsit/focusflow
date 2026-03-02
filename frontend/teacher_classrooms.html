@@ -214,6 +214,7 @@
                                 <small class="text-secondary text-uppercase fw-bold" style="font-size: 0.7rem;">Class Code</small>
                                 <div class="d-flex align-items-center gap-2 mt-1">
                                     <code class="fs-4 text-primary bg-dark px-2 rounded">${cls.code}</code>
+                                    <button class="btn btn-sm btn-link p-0 text-decoration-none" onclick="copyCode('${cls.code}')" title="Copy Code">📋</button>
                                 </div>
                             </div>
                             <div class="mt-auto">
@@ -267,6 +268,14 @@
                 alert('Error creating classroom');
             }
         });
+
+        function copyCode(code) {
+            navigator.clipboard.writeText(code).then(() => {
+                alert("Code copied to clipboard: " + code);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
 
         // Sidebar Toggle Logic
         function toggleSidebar() {

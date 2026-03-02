@@ -1,16 +1,12 @@
 """
 FocusFlow - Unified Application Launcher
 
-This script starts all required services for the FocusFlow application:
-1. Backend API (FastAPI/Uvicorn)
-2. Frontend Server (HTTP Server for static files)
-3. Database connection check
-
 Usage:
-    python run.py                    # Start all services
-    python run.py --backend-only     # Start only backend
-    python run.py --frontend-only    # Start only frontend
-    python run.py --port 8000        # Custom backend port
+    python run.py                  # Start backend + frontend + open browser
+    python run.py --backend-only   # Start only backend
+    python run.py --frontend-only  # Start only frontend
+    python run.py --no-browser     # Don't auto-open browser
+    python run.py --skip-checks    # Skip dependency/DB checks
 """
 
 import subprocess
@@ -20,399 +16,312 @@ import time
 import signal
 import argparse
 from pathlib import Path
-import webbrowser
 from threading import Thread
+import webbrowser
 
-# ANSI color codes for terminal output
-class Colors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+# ─── ANSI Colors ──────────────────────────────────────────────────────────────
+class C:
+    BOLD   = '\033[1m'
+    GREEN  = '\033[92m'
+    CYAN   = '\033[96m'
+    YELLOW = '\033[93m'
+    RED    = '\033[91m'
+    PURPLE = '\033[95m'
+    RESET  = '\033[0m'
 
-# Configuration
-BACKEND_PORT = 8000
-FRONTEND_PORT = 3000
-BACKEND_DIR = Path(__file__).parent / "backend"
-FRONTEND_DIR = Path(__file__).parent / "frontend"
+# ─── Config ───────────────────────────────────────────────────────────────────
+BACKEND_PORT   = 8000
+FRONTEND_PORT  = 3000
+ROOT_DIR       = Path(__file__).parent
+BACKEND_DIR    = ROOT_DIR / "backend"
+FRONTEND_DIR   = ROOT_DIR / "frontend"
 
-# Global process list
 processes = []
 
+# ─── Print Helpers ────────────────────────────────────────────────────────────
+def banner(text):
+    print(f"\n{C.PURPLE}{C.BOLD}{'─' * 58}{C.RESET}")
+    print(f"{C.PURPLE}{C.BOLD}  {text}{C.RESET}")
+    print(f"{C.PURPLE}{C.BOLD}{'─' * 58}{C.RESET}\n")
 
-def print_header(text):
-    """Print a formatted header"""
-    print(f"\n{Colors.HEADER}{Colors.BOLD}{'=' * 60}{Colors.ENDC}")
-    print(f"{Colors.HEADER}{Colors.BOLD}{text:^60}{Colors.ENDC}")
-    print(f"{Colors.HEADER}{Colors.BOLD}{'=' * 60}{Colors.ENDC}\n")
+def ok(text):   print(f"  {C.GREEN}✓  {text}{C.RESET}")
+def info(text): print(f"  {C.CYAN}ℹ  {text}{C.RESET}")
+def warn(text): print(f"  {C.YELLOW}⚠  {text}{C.RESET}")
+def err(text):  print(f"  {C.RED}✗  {text}{C.RESET}")
 
-
-def print_success(text):
-    """Print success message"""
-    print(f"{Colors.OKGREEN}✓ {text}{Colors.ENDC}")
-
-
-def print_error(text):
-    """Print error message"""
-    print(f"{Colors.FAIL}✗ {text}{Colors.ENDC}")
-
-
-def print_info(text):
-    """Print info message"""
-    print(f"{Colors.OKCYAN}ℹ {text}{Colors.ENDC}")
-
-
-def print_warning(text):
-    """Print warning message"""
-    print(f"{Colors.WARNING}⚠ {text}{Colors.ENDC}")
-
-
-def check_python_version():
-    """Check if Python version is compatible"""
-    print_info("Checking Python version...")
-    version = sys.version_info
-    if version.major < 3 or (version.major == 3 and version.minor < 8):
-        print_error(f"Python 3.8+ required. Current version: {version.major}.{version.minor}")
+# ─── Checks ───────────────────────────────────────────────────────────────────
+def check_python():
+    v = sys.version_info
+    if v.major < 3 or (v.major == 3 and v.minor < 8):
+        err(f"Python 3.8+ required. Got {v.major}.{v.minor}")
         sys.exit(1)
-    print_success(f"Python {version.major}.{version.minor}.{version.micro} ✓")
+    ok(f"Python {v.major}.{v.minor}.{v.micro}")
 
 
 def check_dependencies():
-    """Check if required dependencies are installed"""
-    print_info("Checking backend dependencies...")
-    
-    required_packages = [
-        'fastapi',
-        'uvicorn',
-        'mysql.connector',
-        'pydantic',
-        'tensorflow',
-        'opencv-python',
-        'mediapipe'
-    ]
-    
+    info("Checking dependencies...")
+    required = {
+        'fastapi':              'fastapi',
+        'uvicorn':              'uvicorn',
+        'mysql.connector':      'mysql-connector-python',
+        'pydantic':             'pydantic',
+        'jose':                 'python-jose',
+        'passlib':              'passlib',
+    }
     missing = []
-    for package in required_packages:
+    for module, pkg in required.items():
         try:
-            if package == 'opencv-python':
-                __import__('cv2')
-            elif package == 'mysql.connector':
-                __import__('mysql.connector')
-            else:
-                __import__(package.replace('-', '_'))
+            __import__(module)
         except ImportError:
-            missing.append(package)
-    
+            missing.append(pkg)
+
     if missing:
-        print_warning(f"Missing packages: {', '.join(missing)}")
-        print_info("Install with: pip install -r backend/requirements.txt")
-        response = input("Continue anyway? (y/n): ").lower()
-        if response != 'y':
+        warn(f"Missing packages: {', '.join(missing)}")
+        info("Run: pip install -r backend/requirements.txt")
+        ans = input("  Continue anyway? (y/n): ").strip().lower()
+        if ans != 'y':
             sys.exit(1)
     else:
-        print_success("All backend dependencies installed ✓")
+        ok("All core dependencies installed")
+
+    # Optional ML check (non-blocking)
+    ml_ok = []
+    for mod in ['cv2', 'mediapipe', 'tensorflow']:
+        try:
+            __import__(mod)
+            ml_ok.append(mod)
+        except ImportError:
+            pass
+    if ml_ok:
+        ok(f"ML packages available: {', '.join(ml_ok)}")
+    else:
+        warn("ML packages (tensorflow/mediapipe/opencv) not found — camera features disabled")
 
 
-def check_database_connection():
-    """Check if database is accessible"""
-    print_info("Checking database connection...")
-    
+def check_database():
+    info("Testing MySQL connection...")
     try:
-        # Add backend to path to import database module
         sys.path.insert(0, str(BACKEND_DIR))
         from database import db
-        
         if db.test_connection():
-            print_success("Database connection successful ✓")
+            ok("MySQL connected ✓")
             return True
         else:
-            print_warning("Database connection failed")
-            print_info("Make sure MySQL is running and credentials are correct")
-            response = input("Continue without database? (y/n): ").lower()
-            return response == 'y'
+            warn("MySQL connection failed")
+            info("Check DB_HOST / DB_USER / DB_PASSWORD / DB_NAME in backend/.env")
+            ans = input("  Continue without DB? (y/n): ").strip().lower()
+            return ans == 'y'
     except Exception as e:
-        print_warning(f"Database check failed: {e}")
-        print_info("Backend will start but may not function properly")
-        response = input("Continue anyway? (y/n): ").lower()
-        return response == 'y'
+        warn(f"DB check error: {e}")
+        ans = input("  Continue anyway? (y/n): ").strip().lower()
+        return ans == 'y'
 
 
 def check_ml_models():
-    """Check if ML models are present"""
-    print_info("Checking ML models...")
-    
+    model_dir = BACKEND_DIR / "models"
     models = [
-        BACKEND_DIR / "models" / "face_detection" / "detect_face.tflite",
-        BACKEND_DIR / "models" / "eye_tracking" / "track_eye.task",
-        BACKEND_DIR / "models" / "emotion_detection" / "detect_emotion.h5"
+        ("detect_face.tflite",  "Face Detection"),
+        ("track_eye.task",      "Eye Tracking"),
+        ("emotion_model.h5",    "Emotion Detection"),
     ]
-    
-    missing = []
-    for model in models:
-        if not model.exists():
-            missing.append(model.name)
-    
+    missing = [name for fname, name in models if not (model_dir / fname).exists()]
     if missing:
-        print_warning(f"Missing ML models: {', '.join(missing)}")
-        print_info("Computer vision features will be disabled")
-        print_info("See backend/models/README.md for download instructions")
+        warn(f"ML models missing: {', '.join(missing)}")
+        info("Camera-based features will be limited to OpenCV fallback")
     else:
-        print_success("All ML models present ✓")
+        ok("All ML models found")
 
 
+# ─── Service Starters ─────────────────────────────────────────────────────────
 def start_backend(port=BACKEND_PORT):
-    """Start the backend API server"""
-    print_header("Starting Backend Server")
-    
-    print_info(f"Backend directory: {BACKEND_DIR}")
-    print_info(f"Backend port: {port}")
-    
+    banner("Starting Backend  (FastAPI + MySQL)")
+
+    cmd = [
+        sys.executable, "-m", "uvicorn",
+        "main:app",
+        "--host", "0.0.0.0",
+        "--port", str(port),
+        "--reload"
+    ]
+
     try:
-        # Start uvicorn server
-        cmd = [
-            sys.executable,
-            "-m", "uvicorn",
-            "main:app",
-            "--host", "0.0.0.0",
-            "--port", str(port),
-            "--reload"
-        ]
-        
-        # On Windows, don't pipe output to avoid blocking issues
-        # Create process in new console or detached
         if sys.platform == "win32":
-            process = subprocess.Popen(
+            proc = subprocess.Popen(
                 cmd,
                 cwd=str(BACKEND_DIR),
                 creationflags=subprocess.CREATE_NEW_CONSOLE
             )
         else:
-            process = subprocess.Popen(
-                cmd,
-                cwd=str(BACKEND_DIR)
-            )
-        
-        processes.append(("Backend", process))
-        
-        # Wait for backend to start
-        print_info("Waiting for backend to start...")
+            proc = subprocess.Popen(cmd, cwd=str(BACKEND_DIR))
+
+        processes.append(("Backend", proc))
+        info("Waiting for backend to start...")
         time.sleep(4)
-        
-        # Verify it's running
-        if process.poll() is None:
-            print_success(f"Backend started successfully on http://localhost:{port}")
-            print_info(f"API docs: http://localhost:{port}/docs")
-            print_info(f"Health check: http://localhost:{port}/health")
-            return process
+
+        if proc.poll() is None:
+            ok(f"Backend running  →  http://localhost:{port}")
+            info(f"API Docs         →  http://localhost:{port}/docs")
+            info(f"Health check     →  http://localhost:{port}/health")
+            return proc
         else:
-            print_error("Backend failed to start")
+            err("Backend failed to start — check the console window")
             return None
-            
     except Exception as e:
-        print_error(f"Failed to start backend: {e}")
+        err(f"Failed to start backend: {e}")
         return None
 
 
 def start_frontend(port=FRONTEND_PORT):
-    """Start the frontend HTTP server"""
-    print_header("Starting Frontend Server")
-    
-    print_info(f"Frontend directory: {FRONTEND_DIR}")
-    print_info(f"Frontend port: {port}")
-    
+    banner("Starting Frontend  (Static HTTP Server)")
+
+    cmd = [
+        sys.executable, "-m", "http.server",
+        str(port),
+        "--directory", str(FRONTEND_DIR)
+    ]
+
     try:
-        # Start simple HTTP server for static files
-        cmd = [
-            sys.executable,
-            "-m", "http.server",
-            str(port),
-            "--directory", str(FRONTEND_DIR)
-        ]
-        
-        # On Windows, create process in new console
         if sys.platform == "win32":
-            process = subprocess.Popen(
+            proc = subprocess.Popen(
                 cmd,
                 creationflags=subprocess.CREATE_NEW_CONSOLE
             )
         else:
-            process = subprocess.Popen(cmd)
-        
-        processes.append(("Frontend", process))
-        
-        # Wait for frontend to start
-        print_info("Waiting for frontend to start...")
+            proc = subprocess.Popen(cmd)
+
+        processes.append(("Frontend", proc))
+        info("Waiting for frontend to start...")
         time.sleep(2)
-        
-        # Verify it's running
-        if process.poll() is None:
-            print_success(f"Frontend started successfully on http://localhost:{port}")
-            print_info(f"Application URL: http://localhost:{port}")
-            return process
+
+        if proc.poll() is None:
+            ok(f"Frontend running →  http://localhost:{port}")
+            return proc
         else:
-            print_error("Frontend failed to start")
+            err("Frontend failed to start")
             return None
-            
     except Exception as e:
-        print_error(f"Failed to start frontend: {e}")
+        err(f"Failed to start frontend: {e}")
         return None
 
 
-def monitor_process(name, process):
-    """Monitor a process and print its output"""
-    try:
-        for line in process.stdout:
-            if line.strip():
-                # Filter out excessive logging
-                if "GET /" not in line and "POST /" not in line:
-                    print(f"[{name}] {line.strip()}")
-    except Exception:
-        pass
-
-
-def open_browser(url, delay=2):
-    """Open browser after a delay"""
+# ─── Browser ─────────────────────────────────────────────────────────────────
+def open_browser(url, delay=3):
     time.sleep(delay)
     try:
-        print_header("Opening Browser")
-        print_success(f"🌐 Opening {url} in your default browser...")
         webbrowser.open(url)
-        print_success(f"✓ Browser opened successfully!")
-    except Exception as e:
-        print_warning(f"Could not open browser automatically: {e}")
-        print_info(f"Please manually open: {url}")
+        ok(f"Browser opened → {url}")
+    except Exception:
+        warn(f"Could not auto-open browser. Visit: {url}")
 
 
+# ─── Cleanup ─────────────────────────────────────────────────────────────────
 def cleanup():
-    """Cleanup all running processes"""
-    print_header("Shutting Down")
-    
-    for name, process in processes:
-        if process and process.poll() is None:
-            print_info(f"Stopping {name}...")
+    banner("Shutting Down")
+    for name, proc in processes:
+        if proc and proc.poll() is None:
+            info(f"Stopping {name}...")
             try:
-                process.terminate()
-                process.wait(timeout=5)
-                print_success(f"{name} stopped")
+                proc.terminate()
+                proc.wait(timeout=5)
+                ok(f"{name} stopped")
             except subprocess.TimeoutExpired:
-                process.kill()
-                print_warning(f"{name} force killed")
+                proc.kill()
+                warn(f"{name} force-killed")
             except Exception as e:
-                print_error(f"Error stopping {name}: {e}")
-    
-    print_success("All services stopped")
+                err(f"Error stopping {name}: {e}")
+    ok("All services stopped. Goodbye!")
 
 
 def signal_handler(signum, frame):
-    """Handle Ctrl+C gracefully"""
     print("\n")
     cleanup()
     sys.exit(0)
 
 
+# ─── Main ─────────────────────────────────────────────────────────────────────
 def main():
-    """Main entry point"""
-    # Parse arguments
-    parser = argparse.ArgumentParser(description="FocusFlow Application Launcher")
-    parser.add_argument("--backend-only", action="store_true", help="Start only backend")
-    parser.add_argument("--frontend-only", action="store_true", help="Start only frontend")
-    parser.add_argument("--port", type=int, default=BACKEND_PORT, help="Backend port")
-    parser.add_argument("--frontend-port", type=int, default=FRONTEND_PORT, help="Frontend port")
-    parser.add_argument("--no-browser", action="store_true", help="Don't open browser")
-    parser.add_argument("--skip-checks", action="store_true", help="Skip dependency checks")
-    
+    parser = argparse.ArgumentParser(description="FocusFlow Launcher")
+    parser.add_argument("--backend-only",  action="store_true")
+    parser.add_argument("--frontend-only", action="store_true")
+    parser.add_argument("--no-browser",    action="store_true")
+    parser.add_argument("--skip-checks",   action="store_true")
+    parser.add_argument("--port",          type=int, default=BACKEND_PORT)
+    parser.add_argument("--frontend-port", type=int, default=FRONTEND_PORT)
     args = parser.parse_args()
-    
-    # Print header
-    print_header("FocusFlow Application Launcher")
-    
-    # Register signal handler for graceful shutdown
-    signal.signal(signal.SIGINT, signal_handler)
+
+    signal.signal(signal.SIGINT,  signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
-    try:
-        # Run checks
-        if not args.skip_checks:
-            check_python_version()
-            check_dependencies()
-            
-            if not args.frontend_only:
-                db_ok = check_database_connection()
-                if not db_ok:
-                    print_error("Cannot start without database")
-                    sys.exit(1)
-                check_ml_models()
-        
-        # Start services
-        backend_process = None
-        frontend_process = None
-        
+
+    # ── Header ────────────────────────────────────────────────────────────────
+    print(f"\n{C.PURPLE}{C.BOLD}")
+    print("  ███████╗ ██████╗  ██████╗██╗   ██╗███████╗")
+    print("  ██╔════╝██╔═══██╗██╔════╝██║   ██║██╔════╝")
+    print("  █████╗  ██║   ██║██║     ██║   ██║███████╗")
+    print("  ██╔══╝  ██║   ██║██║     ██║   ██║╚════██║")
+    print("  ██║     ╚██████╔╝╚██████╗╚██████╔╝███████║")
+    print("  ╚═╝      ╚═════╝  ╚═════╝ ╚═════╝ ╚══════╝")
+    print(f"  ███████╗██╗      ██████╗ ██╗    ██╗{C.RESET}")
+    print(f"{C.CYAN}           Smart Study Assistant  v1.0{C.RESET}\n")
+
+    # ── Checks ────────────────────────────────────────────────────────────────
+    if not args.skip_checks:
+        banner("Pre-flight Checks")
+        check_python()
+        check_dependencies()
+
         if not args.frontend_only:
-            backend_process = start_backend(args.port)
-            if not backend_process:
-                print_error("Failed to start backend")
+            if not check_database():
+                err("Cannot start without database. Exiting.")
                 sys.exit(1)
-        
-        if not args.backend_only:
-            frontend_process = start_frontend(args.frontend_port)
-            if not frontend_process:
-                print_error("Failed to start frontend")
-                if backend_process:
-                    cleanup()
-                sys.exit(1)
-        
-        # Print status
-        print_header("Services Running")
-        
-        if backend_process:
-            print_success(f"Backend:  http://localhost:{args.port}")
-            print_info(f"          http://localhost:{args.port}/docs (API Docs)")
-        
-        if frontend_process:
-            print_success(f"Frontend: http://localhost:{args.frontend_port}")
-        
-        print("\n")
-        print_info("Press Ctrl+C to stop all services")
-        
-        # Open browser notification
-        if not args.no_browser and frontend_process:
-            print("\n")
-            print_success("🌐 Browser will open automatically in 2 seconds...")
-            print_info(f"   Opening: http://localhost:{args.frontend_port}")
-        
-        print("\n")
-        
-        # Open browser
-        if not args.no_browser and frontend_process:
-            Thread(target=open_browser, args=(f"http://localhost:{args.frontend_port}",), daemon=True).start()
-        
-        # Keep running until interrupted
-        # Processes are running in separate consoles on Windows
-        print_info("Services are running. Check the separate console windows for logs.")
-        print_info("To stop all services, close this window or press Ctrl+C")
-        print("\n")
-        
+            check_ml_models()
+
+    # ── Start Services ────────────────────────────────────────────────────────
+    backend_proc  = None
+    frontend_proc = None
+
+    if not args.frontend_only:
+        backend_proc = start_backend(args.port)
+        if not backend_proc:
+            err("Backend failed. Exiting.")
+            sys.exit(1)
+
+    if not args.backend_only:
+        frontend_proc = start_frontend(args.frontend_port)
+        if not frontend_proc:
+            err("Frontend failed. Exiting.")
+            cleanup()
+            sys.exit(1)
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+    banner("🚀  FocusFlow is Running!")
+    if backend_proc:
+        ok(f"Backend   →  http://localhost:{args.port}")
+        info(f"API Docs  →  http://localhost:{args.port}/docs")
+    if frontend_proc:
+        ok(f"Frontend  →  http://localhost:{args.frontend_port}")
+
+    print(f"\n  {C.YELLOW}Press Ctrl+C to stop all services{C.RESET}\n")
+
+    # ── Open Browser ─────────────────────────────────────────────────────────
+    if not args.no_browser and frontend_proc:
+        Thread(
+            target=open_browser,
+            args=(f"http://localhost:{args.frontend_port}",),
+            daemon=True
+        ).start()
+
+    # ── Keep Alive ────────────────────────────────────────────────────────────
+    try:
         while True:
             time.sleep(5)
-            
-            # Check if processes are still running
-            if backend_process and backend_process.poll() is not None:
-                print_error("Backend process stopped unexpectedly")
+            if backend_proc  and backend_proc.poll()  is not None:
+                err("Backend stopped unexpectedly!")
                 break
-            
-            if frontend_process and frontend_process.poll() is not None:
-                print_error("Frontend process stopped unexpectedly")
+            if frontend_proc and frontend_proc.poll() is not None:
+                err("Frontend stopped unexpectedly!")
                 break
-    
     except KeyboardInterrupt:
         pass
-    except Exception as e:
-        print_error(f"Unexpected error: {e}")
     finally:
         cleanup()
 

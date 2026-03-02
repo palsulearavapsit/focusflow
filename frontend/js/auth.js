@@ -3,9 +3,7 @@
  * Handles user authentication, token management, and session persistence
  */
 
-const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:8000'
-    : 'https://aravpal-focusflow-backend.hf.space';
+const API_URL = 'http://localhost:8000';
 
 // Token management
 function getToken() {
@@ -67,7 +65,16 @@ async function signup(username, email, password, role = 'student', autoLogin = t
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.detail || 'Signup failed');
+            let errorMsg = 'Signup failed';
+            if (data && data.detail) {
+                if (Array.isArray(data.detail)) {
+                    // FastAPI validation error list
+                    errorMsg = data.detail.map(err => `${err.loc.join('.')}: ${err.msg}`).join('\n');
+                } else {
+                    errorMsg = data.detail;
+                }
+            }
+            throw new Error(errorMsg);
         }
 
         if (autoLogin) {

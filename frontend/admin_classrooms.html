@@ -152,7 +152,12 @@
                     <tr>
                         <td>#${cls.id}</td>
                         <td class="fw-bold">${cls.name}</td>
-                        <td><code class="text-info">${cls.code}</code></td>
+                         <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <code class="text-info">${cls.code}</code>
+                                <button class="btn btn-sm btn-link p-0 text-decoration-none" onclick="copyCode('${cls.code}')" title="Copy Code">📋</button>
+                            </div>
+                        </td>
                         <td>${cls.teacher_name}</td>
                         <td>${cls.student_count || 0}</td>
                         <td>
@@ -161,6 +166,14 @@
                     </tr>
                 `;
                 tbody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+
+        function copyCode(code) {
+            navigator.clipboard.writeText(code).then(() => {
+                alert("Code copied to clipboard: " + code);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
             });
         }
 

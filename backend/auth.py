@@ -1,55 +1,76 @@
 """
-FocusFlow Auth Module - Supabase Edition
-Refactored to rely on Supabase Auth for security
+FocusFlow Auth Module - MySQL Edition
+JWT-based authentication with bcrypt password hashing
 """
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
 import logging
-from database import db as supabase_db
+from database import get_user_by_id
 from config import settings
 from typing import Optional, Dict
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
-# FastAPI Security helper
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# FastAPI security helper
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
-async def get_current_user_id(token: str = Depends(oauth2_scheme)) -> str:
-    """
-    Verify Supabase JWT and return User UUID
-    """
-    try:
-        # Supabase Python client handles the verification via get_user()
-        response = supabase_db.client.auth.get_user(token)
-        if not response.user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired Supabase token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        return response.user.id
-    except Exception as e:
-        logger.error(f"❌ Supabase token verification error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session expired. Please login again.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
 
-async def get_current_user(user_id: str = Depends(get_current_user_id)) -> Dict:
-    """
-    Get the full user profile from the database
-    """
-    profile = supabase_db.client.table("profiles").select("*").eq("id", user_id).single().execute()
-    if not profile.data:
-        raise HTTPException(status_code=404, detail="User profile not found")
-    return profile.data
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a password against its hash"""
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def hash_password(password: str) -> str:
+    """Hash a password"""
+    return pwd_context.hash(password)
+
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a JWT access token"""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (
+        expires_delta or timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
+    )
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+async def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
+    """Decode JWT and return user ID (int)"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+        return int(user_id)
+    except JWTError:
+        raise credentials_exception
+
+
+async def get_current_user(user_id: int = Depends(get_current_user_id)) -> Dict:
+    """Get full user profile from database"""
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
 
 async def get_current_active_user(current_user: Dict = Depends(get_current_user)) -> Dict:
-    """Check if user profile is healthy"""
+    """Check if user is active"""
     return current_user
+
 
 async def check_admin_role(current_user: Dict = Depends(get_current_user)) -> Dict:
     """Verify admin privileges"""
@@ -60,10 +81,8 @@ async def check_admin_role(current_user: Dict = Depends(get_current_user)) -> Di
         )
     return current_user
 
-# Aliases for compatibility with existing routes
+
+# Aliases for route compatibility
 get_current_student = get_current_user
 get_current_teacher = get_current_user
 get_current_admin = check_admin_role
-
-# Note: Your /api/auth/signup and /api/auth/login routes in auth_routes.py
-# should now use supabase.auth.sign_up() and supabase.auth.sign_in_with_password()

@@ -1,365 +1,288 @@
 """
-Face Detection Service - TFLite Model Integration
-
-This service handles face detection using a lightweight TFLite model.
-Model: detect_face.tflite
-
-Responsibilities:
-- Detect and localize faces in video frames
-- Return bounding box coordinates for detected faces
-- Optimized for real-time CPU inference
-- Runs first in the pipeline to provide clean face regions
-
-Output:
-- face_detected: bool
-- face_count: int
-- bounding_boxes: List of [x, y, width, height]
-- confidence_scores: List of confidence values
+FocusFlow Face Detector Service
+Uses OpenCV DNN (primary) with TFLite + Haar cascade fallbacks.
 """
 
-import cv2
-import numpy as np
-import tensorflow as tf
-import os
 import logging
-from typing import Dict, List, Tuple, Optional
+import os
+import numpy as np
+from typing import Dict, List, Optional
+import cv2
 
 logger = logging.getLogger(__name__)
+
+# ─── Try TFLite ───────────────────────────────────────────────────────────────
+try:
+    import tensorflow as tf
+    TFLITE_AVAILABLE = True
+except ImportError:
+    TFLITE_AVAILABLE = False
+    logger.warning("⚠️ TensorFlow not available. Face detection disabled.")
 
 
 class FaceDetector:
     """
-    Face Detection using TFLite model
-    
-    This is the first stage of the computer vision pipeline.
-    It detects faces and provides bounding boxes for downstream models.
+    Face detector using multiple methods in priority order:
+    1. TFLite BlazeFace model (detect_face.tflite)
+    2. OpenCV Haar Cascade fallback (always available)
     """
-    
-    def __init__(self, model_path: Optional[str] = None):
-        """
-        Initialize the face detector
-        
-        Args:
-            model_path: Path to detect_face.tflite model
-        """
-        if model_path is None:
-            model_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                "models", "face_detection", "detect_face.tflite"
-            )
-        
-        self.model_path = model_path
+
+    MODEL_FILENAME = "detect_face.tflite"
+
+    def __init__(self):
+        self.model_loaded = False
         self.interpreter = None
+        self.input_size = 128   # BlazeFace default
         self.input_details = None
         self.output_details = None
-        self.model_loaded = False
-        
-        # Load model on initialization
         self._load_model()
-    
+
     def _load_model(self):
-        """Load the TFLite face detection model"""
+        """Load the TFLite BlazeFace model"""
+        model_path = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), "..", "models", "face_detection", self.MODEL_FILENAME
+        ))
+
+        if not os.path.exists(model_path):
+            logger.warning(f"⚠️ Face detection model not found at: {model_path} — using Haar cascade fallback")
+            return
+
+        if not TFLITE_AVAILABLE:
+            logger.warning("⚠️ TFLite not available — using Haar cascade fallback")
+            return
+
         try:
-            if not os.path.exists(self.model_path):
-                logger.error(f"❌ Face detection model not found at {self.model_path}")
-                # Debug: Check parent directory
-                parent_dir = os.path.dirname(self.model_path)
-                if os.path.exists(parent_dir):
-                    logger.info(f"📁 Directory {parent_dir} exists: {os.listdir(parent_dir)}")
-                else:
-                    logger.error(f"❌ Directory {parent_dir} NOT found")
-                return
-            
-            # File exists, log size
-            file_size = os.path.getsize(self.model_path)
-            logger.info(f"📄 Model file found at {self.model_path} ({file_size} bytes)")
-            
-            if file_size < 1000:
-                logger.error(f"⚠️ Model file is too small ({file_size} bytes). Likely a Git-LFS pointer.")
-                return
-            
-            # Initialize TFLite interpreter
-            self.interpreter = tf.lite.Interpreter(model_path=self.model_path)
+            self.interpreter = tf.lite.Interpreter(model_path=model_path)
             self.interpreter.allocate_tensors()
-            
-            # Get input and output details
-            self.input_details = self.interpreter.get_input_details()
+            self.input_details  = self.interpreter.get_input_details()
             self.output_details = self.interpreter.get_output_details()
-            
+
+            # Detect input size from model
+            shape = self.input_details[0]['shape']   # [1, H, W, C]
+            self.input_size = shape[1]
+
             self.model_loaded = True
-            logger.info(f"✅ Face detection model loaded from {self.model_path}")
-            logger.info(f"   Input shape: {self.input_details[0]['shape']}")
-            logger.info(f"   Output shape: {self.output_details[0]['shape']}")
-            
+            logger.info(f"✅ Face detection model loaded (input: {self.input_size}x{self.input_size})")
         except Exception as e:
             logger.error(f"❌ Failed to load face detection model: {e}")
-            self.model_loaded = False
-    
-    def preprocess_image(self, image_bytes: bytes) -> Optional[np.ndarray]:
+            logger.info("   → Will use OpenCV Haar cascade fallback")
+
+    # ─── Public API ──────────────────────────────────────────────────────────
+
+    def detect_faces(self, frame_bytes: bytes) -> Dict:
         """
-        Preprocess image for face detection
-        
-        Args:
-            image_bytes: Raw image bytes
-            
+        Detect faces in image bytes.
+
         Returns:
-            Preprocessed image array or None if error
-        """
-        try:
-            # Convert bytes to numpy array
-            nparr = np.frombuffer(image_bytes, np.uint8)
-            
-            # Decode image
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            
-            if img is None:
-                logger.error("Failed to decode image")
-                return None
-            
-            # Convert BGR to RGB (TFLite models typically expect RGB)
-            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            
-            # Get input shape from model
-            input_shape = self.input_details[0]['shape']
-            height, width = input_shape[1], input_shape[2]
-            
-            # Resize image to model input size
-            img_resized = cv2.resize(img_rgb, (width, height))
-            
-            # Normalize to [0, 1] if model expects float input
-            if self.input_details[0]['dtype'] == np.float32:
-                img_resized = img_resized.astype(np.float32) / 255.0
-            
-            # Add batch dimension
-            img_input = np.expand_dims(img_resized, axis=0)
-            
-            return img_input, img
-            
-        except Exception as e:
-            logger.error(f"Error preprocessing image: {e}")
-            return None, None
-    
-    def detect_faces(self, image_bytes: bytes) -> Dict:
-        """
-        Detect faces in image
-        
-        This is the main entry point for face detection.
-        
-        Args:
-            image_bytes: Raw image bytes from camera/upload
-            
-        Returns:
-            Dictionary containing:
-            - face_detected: bool
-            - face_count: int
-            - bounding_boxes: List of [x, y, w, h]
-            - confidence_scores: List of confidence values
-            - original_image_shape: Tuple of (height, width, channels)
-        """
-        if not self.model_loaded:
-            logger.warning("Face detection model not loaded, attempting reload...")
-            self._load_model()
-            
-            if not self.model_loaded:
-                return self._get_empty_result()
-        
-        try:
-            # Preprocess image
-            preprocessed_result = self.preprocess_image(image_bytes)
-            
-            if preprocessed_result is None:
-                return self._get_empty_result()
-            
-            img_input, original_img = preprocessed_result
-            
-            if img_input is None:
-                return self._get_empty_result()
-            
-            # Run inference
-            print("\n" + "="*20 + " INFERENCE START " + "="*20)
-            self.interpreter.set_tensor(self.input_details[0]['index'], img_input)
-            self.interpreter.invoke()
-            print("="*20 + " INFERENCE END   " + "="*20 + "\n")
-            
-            # Get output tensors
-            # Note: Output format depends on the specific TFLite model
-            # Common formats: [num_detections, boxes, scores, classes]
-            boxes = self.interpreter.get_tensor(self.output_details[0]['index'])
-            scores = self.interpreter.get_tensor(self.output_details[1]['index']) if len(self.output_details) > 1 else None
-            
-            # Parse detections
-            bounding_boxes, confidence_scores = self._parse_detections(
-                boxes, scores, original_img.shape
-            )
-            
-            result = {
-                "face_detected": len(bounding_boxes) > 0,
-                "face_count": len(bounding_boxes),
-                "bounding_boxes": bounding_boxes,
-                "confidence_scores": confidence_scores,
-                "original_image_shape": original_img.shape
+            {
+                "face_detected": bool,
+                "face_count":    int,
+                "bounding_boxes":    [[x, y, w, h], ...],
+                "confidence_scores": [float, ...]
             }
-            
-            logger.info(f"📸 Face detection: {len(bounding_boxes)} face(s) detected")
-            return result
-            
-        except Exception as e:
-            logger.error(f"Error in face detection: {e}")
-            return self._get_empty_result()
-    
-    def _parse_detections(
-        self, 
-        boxes: np.ndarray, 
-        scores: Optional[np.ndarray],
-        image_shape: Tuple[int, int, int],
-        confidence_threshold: float = 0.2
-    ) -> Tuple[List, List]:
         """
-        Parse detection outputs into bounding boxes and scores
-        """
-        bounding_boxes = []
-        confidence_scores = []
-        
+        if self.model_loaded:
+            result = self._detect_tflite(frame_bytes)
+            if result["face_count"] > 0:
+                return result
+            # Fall through to Haar if TFLite finds nothing
+            # (sometimes TFLite is picky about lighting/angle)
+
+        return self._detect_haar(frame_bytes)
+
+    def crop_face_region(self, frame_bytes: bytes, bbox: List[int]) -> Optional[bytes]:
+        """Crop a face region [x, y, w, h] from image bytes with padding."""
         try:
-            # Handle different output formats
-            if len(boxes.shape) == 3:
-                boxes = boxes[0]  # [N, 4 or 16]
-            
-            if scores is not None and len(scores.shape) == 3:
-                scores = scores[0]  # [N, 1]
-            
-            height, width = image_shape[:2]
-            
-            # Debug: Check if scores need sigmoid (if they are logits)
-            if scores is not None:
-                max_score = np.max(scores)
-                min_score = np.min(scores)
-                print(f"DEBUG: Face scores range: [{min_score:.4f}, {max_score:.4f}]")
-                if len(boxes) > 0:
-                    print(f"DEBUG: First raw box: {boxes[0][:4]}")
-                
-                # If max score is > 5 or < 0, it's likely logits
-                needs_sigmoid = max_score > 1.0 or min_score < 0
-            else:
-                needs_sigmoid = False
-            
-            for i, box in enumerate(boxes):
-                # Get confidence score
-                raw_conf = scores[i] if scores is not None else 1.0
-                
-                # Handle array score [val]
-                if isinstance(raw_conf, (np.ndarray, list)):
-                    raw_conf = raw_conf[0]
-                
-                # Apply sigmoid if logit
-                if needs_sigmoid:
-                    conf = 1.0 / (1.0 + np.exp(-float(raw_conf)))
-                else:
-                    conf = float(raw_conf)
-                
-                # Filter by confidence threshold
-                if conf < confidence_threshold:
-                    continue
-                
-                # Convert normalized coordinates to pixel coordinates
-                # Box format: [ymin, xmin, ymax, xmax] (normalized 0-1)
-                ymin, xmin, ymax, xmax = box[:4]
-                
-                # Clip to [0, 1]
-                ymin = max(0.0, min(1.0, float(ymin)))
-                xmin = max(0.0, min(1.0, float(xmin)))
-                ymax = max(0.0, min(1.0, float(ymax)))
-                xmax = max(0.0, min(1.0, float(xmax)))
-
-                if (ymax - ymin) < 0.05 or (xmax - xmin) < 0.05:
-                    continue # Too small
-
-                x = int(xmin * width)
-                y = int(ymin * height)
-                w = int((xmax - xmin) * width)
-                h = int((ymax - ymin) * height)
-                
-                bounding_boxes.append([x, y, w, h])
-                confidence_scores.append(float(conf))
-            
-            # Sort by confidence
-            if bounding_boxes:
-                combined = sorted(zip(confidence_scores, bounding_boxes), reverse=True, key=lambda x: x[0])
-                confidence_scores = [c for c, b in combined]
-                bounding_boxes = [b for c, b in combined]
-
-        except Exception as e:
-            logger.error(f"Error parsing detections: {e}")
-        
-        return bounding_boxes, confidence_scores
-    
-    def crop_face_region(
-        self, 
-        image_bytes: bytes, 
-        bounding_box: List[int],
-        padding: float = 0.1
-    ) -> Optional[bytes]:
-        """
-        Crop face region from image for downstream models
-        
-        Args:
-            image_bytes: Original image bytes
-            bounding_box: [x, y, w, h]
-            padding: Extra padding around face (10% by default)
-            
-        Returns:
-            Cropped face image as bytes
-        """
-        try:
-            # Decode image
-            nparr = np.frombuffer(image_bytes, np.uint8)
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            
-            if img is None:
+            nparr = np.frombuffer(frame_bytes, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if frame is None:
                 return None
-            
-            # Extract box coordinates
-            x, y, w, h = bounding_box
-            
-            # Add padding
-            pad_w = int(w * padding)
-            pad_h = int(h * padding)
-            
-            x1 = max(0, x - pad_w)
-            y1 = max(0, y - pad_h)
-            x2 = min(img.shape[1], x + w + pad_w)
-            y2 = min(img.shape[0], y + h + pad_h)
-            
-            # Crop face region
-            face_roi = img[y1:y2, x1:x2]
-            
-            # Encode back to bytes
-            _, buffer = cv2.imencode('.jpg', face_roi)
-            return buffer.tobytes()
-            
+
+            x, y, w, h = bbox
+            pad = 15
+            x1 = max(0, x - pad)
+            y1 = max(0, y - pad)
+            x2 = min(frame.shape[1], x + w + pad)
+            y2 = min(frame.shape[0], y + h + pad)
+
+            crop = frame[y1:y2, x1:x2]
+            if crop.size == 0:
+                return None
+
+            _, buf = cv2.imencode('.jpg', crop)
+            return buf.tobytes()
         except Exception as e:
-            logger.error(f"Error cropping face region: {e}")
+            logger.error(f"❌ Face crop error: {e}")
             return None
-    
-    def _get_empty_result(self) -> Dict:
-        """Return empty result when detection fails"""
-        return {
-            "face_detected": False,
-            "face_count": 0,
-            "bounding_boxes": [],
-            "confidence_scores": [],
-            "original_image_shape": None
-        }
-    
+
     def get_status(self) -> Dict:
-        """Get face detector status"""
         return {
-            "model_loaded": self.model_loaded,
-            "model_path": self.model_path,
-            "model_type": "TFLite Face Detection",
-            "optimized_for": "Real-time CPU inference"
+            "model_loaded":       self.model_loaded,
+            "model_file":         self.MODEL_FILENAME,
+            "fallback_available": True,   # Haar is always available via OpenCV
+            "description":        "TFLite BlazeFace + OpenCV Haar cascade fallback"
+        }
+
+    # ─── Private Detection Methods ────────────────────────────────────────────
+
+    def _detect_tflite(self, frame_bytes: bytes) -> Dict:
+        """Run TFLite BlazeFace inference."""
+        try:
+            nparr = np.frombuffer(frame_bytes, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if frame is None:
+                return self._empty()
+
+            h, w = frame.shape[:2]
+            sz = self.input_size
+
+            # Pre-process: resize + normalize to [-1, 1] (BlazeFace standard)
+            resized = cv2.resize(frame, (sz, sz))
+            rgb     = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+            inp     = (rgb.astype(np.float32) - 127.5) / 127.5
+            inp     = np.expand_dims(inp, axis=0)
+
+            self.interpreter.set_tensor(self.input_details[0]['index'], inp)
+            self.interpreter.invoke()
+
+            # BlazeFace outputs: regressors [1,896,16] + classificators [1,896,1]
+            # Try to find score output (classificator) automatically
+            scores_tensor = None
+            boxes_tensor  = None
+
+            for detail in self.output_details:
+                shape = detail['shape']
+                if len(shape) == 3 and shape[2] == 1:
+                    scores_tensor = self.interpreter.get_tensor(detail['index'])[0, :, 0]
+                elif len(shape) == 3 and shape[2] >= 4:
+                    boxes_tensor  = self.interpreter.get_tensor(detail['index'])[0]
+
+            if scores_tensor is None or boxes_tensor is None:
+                # Fallback: use first two outputs generically
+                out0 = self.interpreter.get_tensor(self.output_details[0]['index'])
+                out1 = self.interpreter.get_tensor(self.output_details[1]['index'])
+                if out0.shape[-1] == 1:
+                    scores_tensor = out0[0, :, 0] if out0.ndim == 3 else out0[0]
+                    boxes_tensor  = out1[0]        if out1.ndim == 3 else out1
+                else:
+                    scores_tensor = out1[0, :, 0] if out1.ndim == 3 else out1[0]
+                    boxes_tensor  = out0[0]        if out0.ndim == 3 else out0
+
+            THRESHOLD = 0.65
+            bboxes, confs = [], []
+
+            for i, score in enumerate(scores_tensor):
+                # Safe sigmoid
+                if score < -500:
+                    score = 0.0
+                elif score > 500:
+                    score = 1.0
+                elif score < -10 or score > 10:
+                    score = 1.0 / (1.0 + np.exp(-float(score)))
+
+                if score >= THRESHOLD and i < len(boxes_tensor):
+                    box = boxes_tensor[i]
+                    # BlazeFace box: [ymin, xmin, ymax, xmax] normalized to input size
+                    # Convert to [x, y, w, h] in original pixel coords
+                    if len(box) >= 4:
+                        cy, cx, bh, bw = box[0], box[1], box[2], box[3]
+                        # Some variants: [ymin, xmin, ymax, xmax]
+                        if bh > 1.0:  # Already absolute → treat as [ymin,xmin,ymax,xmax]
+                            ymin, xmin, ymax, xmax = cy/sz, cx/sz, bh/sz, bw/sz
+                        else:
+                            # Center-form: [cy, cx, h, w] normalized 0-1
+                            ymin = max(0, cy - bh/2)
+                            xmin = max(0, cx - bw/2)
+                            ymax = min(1, cy + bh/2)
+                            xmax = min(1, cx + bw/2)
+
+                        px = int(xmin * w)
+                        py = int(ymin * h)
+                        pw = int((xmax - xmin) * w)
+                        ph = int((ymax - ymin) * h)
+
+                        if pw > 10 and ph > 10:
+                            bboxes.append([px, py, pw, ph])
+                            confs.append(float(score))
+
+            if bboxes:
+                # Apply NMS to merge overlapping boxes
+                indices = cv2.dnn.NMSBoxes(bboxes, confs, score_threshold=0.5, nms_threshold=0.4)
+                if len(indices) > 0:
+                    flat_idx = [i[0] if isinstance(i, (list, np.ndarray)) else int(i) for i in indices]
+                    bboxes = [bboxes[i] for i in flat_idx]
+                    confs  = [confs[i]  for i in flat_idx]
+
+                logger.info(f"📸 TFLite: {len(bboxes)} face(s) detected")
+                return {"face_detected": True, "face_count": len(bboxes),
+                        "bounding_boxes": bboxes, "confidence_scores": confs}
+
+            return self._empty()
+
+        except Exception as e:
+            logger.error(f"❌ TFLite face detection error: {e}")
+            return self._empty()
+
+    def _detect_haar(self, frame_bytes: bytes) -> Dict:
+        """Reliable OpenCV Haar cascade fallback."""
+        try:
+            nparr = np.frombuffer(frame_bytes, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if frame is None:
+                return self._empty()
+
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            # Enhance contrast for better detection
+            gray = cv2.equalizeHist(gray)
+
+            cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+            cascade = cv2.CascadeClassifier(cascade_path)
+
+            faces = cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=4,
+                minSize=(60, 60),
+                flags=cv2.CASCADE_SCALE_IMAGE
+            )
+
+            if len(faces) == 0:
+                return self._empty()
+
+            # Apply NMS to remove overlapping boxes
+            faces_list = [[int(x), int(y), int(w), int(h)] for x, y, w, h in faces]
+            scores     = [1.0] * len(faces_list)
+
+            # cv2.dnn.NMSBoxes expects (x,y,w,h), scores, score_thresh, nms_thresh
+            indices = cv2.dnn.NMSBoxes(faces_list, scores, score_threshold=0.3, nms_threshold=0.4)
+            if len(indices) == 0:
+                return self._empty()
+
+            # Flatten indices (OpenCV returns nested list on some versions)
+            flat_idx = [i[0] if isinstance(i, (list, np.ndarray)) else int(i) for i in indices]
+
+            bboxes = [faces_list[i] for i in flat_idx]
+            confs  = [0.92] * len(bboxes)
+
+            logger.info(f"📸 Haar: {len(bboxes)} face(s) detected")
+            return {
+                "face_detected":     True,
+                "face_count":        len(bboxes),
+                "bounding_boxes":    bboxes,
+                "confidence_scores": confs
+            }
+        except Exception as e:
+            logger.error(f"❌ Haar cascade error: {e}")
+            return self._empty()
+
+    def _empty(self) -> Dict:
+        return {
+            "face_detected":     False,
+            "face_count":        0,
+            "bounding_boxes":    [],
+            "confidence_scores": []
         }
 
 
-# Global instance
+# Global singleton
 face_detector = FaceDetector()

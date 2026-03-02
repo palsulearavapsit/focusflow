@@ -189,8 +189,9 @@ function startFaceDetectionLoop(videoElement) {
             // Update badge based on detection result
             if (badge) {
                 if (result && result.face_detected) {
+                    const pct = Math.min(100, Math.round((result.confidence || 0) * 100));
                     badge.className = 'badge bg-success mb-2';
-                    badge.innerText = `✅ Face Detected (${Math.round((result.confidence || 0) * 100)}%)`;
+                    badge.innerText = `✅ Face Detected (${pct}%)`;
                 } else {
                     badge.className = 'badge bg-warning text-dark mb-2';
                     const debugInfo = result && result.debug ? ` (${result.debug})` : '';
@@ -232,66 +233,23 @@ function stopFaceDetectionLoop() {
  * Draw face bounding box and confidence on canvas
  */
 function drawFaceOverlay(canvas, result, videoElement) {
-    if (!canvas || !videoElement) return;
-
-    const ctx = canvas.getContext('2d');
-
-    // Always sync internal resolution to display resolution for pixel perfection
-    if (canvas.width !== videoElement.clientWidth || canvas.height !== videoElement.clientHeight) {
-        canvas.width = videoElement.clientWidth;
-        canvas.height = videoElement.clientHeight;
+    // Clear canvas — green glow is handled by CSS class, not canvas
+    if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (result && result.face_detected && result.bounding_box) {
-        let [x, y, w, h] = result.bounding_box;
-        const confidence = result.confidence || 0.0;
-
-        // Use capture-time resolution for scaling
-        // The frame was captured at videoWidth x videoHeight
-        const vWidth = videoElement.videoWidth || 640;
-        const vHeight = videoElement.videoHeight || 480;
-
-        // Scale coordinates to current display resolution
-        const scaleX = canvas.width / vWidth;
-        const scaleY = canvas.height / vHeight;
-
-        const rectX = x * scaleX;
-        const rectY = y * scaleY;
-        const rectW = w * scaleX;
-        const rectH = h * scaleY;
-
-        // Draw Box with explicit path
-        ctx.beginPath();
-        ctx.strokeStyle = '#00ff00'; // Neon Green
-        ctx.lineWidth = 4;
-        ctx.lineJoin = 'round';
-
-        // Add glow effect
-        ctx.shadowColor = '#00ff00';
-        ctx.shadowBlur = 15;
-
-        ctx.rect(rectX, rectY, rectW, rectH);
-        ctx.stroke();
-
-        // Reset shadow for text
-        ctx.shadowBlur = 0;
-
-        // Draw Status Label
-        const text = `FOCUS: ${Math.round(confidence * 100)}%`;
-        ctx.font = 'bold 14px Inter, sans-serif';
-        const textWidth = ctx.measureText(text).width + 12;
-
-        // Label Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(rectX, rectY - 28, textWidth, 28);
-
-        // Label Text
-        ctx.fillStyle = '#00ff00';
-        ctx.fillText(text, rectX + 6, rectY - 9);
+    // Toggle .face-detected CSS class on the camera wrapper
+    const wrapper = document.getElementById('cameraWrapper');
+    if (wrapper) {
+        if (result && result.face_detected) {
+            wrapper.classList.add('face-detected');
+        } else {
+            wrapper.classList.remove('face-detected');
+        }
     }
 }
+
 
 /**
  * Enable face detection
