@@ -62,6 +62,20 @@ class FaceDetector:
         try:
             if not os.path.exists(self.model_path):
                 logger.error(f"❌ Face detection model not found at {self.model_path}")
+                # Debug: Check parent directory
+                parent_dir = os.path.dirname(self.model_path)
+                if os.path.exists(parent_dir):
+                    logger.info(f"📁 Directory {parent_dir} exists: {os.listdir(parent_dir)}")
+                else:
+                    logger.error(f"❌ Directory {parent_dir} NOT found")
+                return
+            
+            # File exists, log size
+            file_size = os.path.getsize(self.model_path)
+            logger.info(f"📄 Model file found at {self.model_path} ({file_size} bytes)")
+            
+            if file_size < 1000:
+                logger.error(f"⚠️ Model file is too small ({file_size} bytes). Likely a Git-LFS pointer.")
                 return
             
             # Initialize TFLite interpreter
