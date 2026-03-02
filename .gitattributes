@@ -1,3 +1,0 @@
-backend/models/emotion_detection/*.h5 filter=lfs diff=lfs merge=lfs -text
-backend/models/eye_tracking/*.task filter=lfs diff=lfs merge=lfs -text
-backend/models/face_detection/*.tflite filter=lfs diff=lfs merge=lfs -text
