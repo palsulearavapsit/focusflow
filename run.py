@@ -253,16 +253,7 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     # ── Header ────────────────────────────────────────────────────────────────
-    print(f"\n{C.PURPLE}{C.BOLD}")
-    print("  ███████╗ ██████╗  ██████╗██╗   ██╗███████╗")
-    print("  ██╔════╝██╔═══██╗██╔════╝██║   ██║██╔════╝")
-    print("  █████╗  ██║   ██║██║     ██║   ██║███████╗")
-    print("  ██╔══╝  ██║   ██║██║     ██║   ██║╚════██║")
-    print("  ██║     ╚██████╔╝╚██████╗╚██████╔╝███████║")
-    print("  ╚═╝      ╚═════╝  ╚═════╝ ╚═════╝ ╚══════╝")
-    print(f"  ███████╗██╗      ██████╗ ██╗    ██╗{C.RESET}")
-    print(f"{C.CYAN}           Smart Study Assistant  v1.0{C.RESET}\n")
-
+    banner("🎯  FocusFlow Launcher")
     # ── Checks ────────────────────────────────────────────────────────────────
     if not args.skip_checks:
         banner("Pre-flight Checks")
