@@ -80,6 +80,13 @@
                         <span>My Students</span>
                     </a>
                 </div>
+                <div class="nav-item">
+                    <a href="discussion_forum.html" class="nav-link" style="position:relative;">
+                        <span>💬</span>
+                        <span>Discussion Forum</span>
+                        <span id="forumUnreadBadge" style="display:none; background:#ef4444; color:#fff; font-size:0.65rem; font-weight:700; min-width:18px; height:18px; border-radius:9px; padding:0 5px; align-items:center; justify-content:center; margin-left:auto;"></span>
+                    </a>
+                </div>
             </nav>
 
             <div class="sidebar-footer">
@@ -166,6 +173,25 @@
     <!-- Logic -->
     <script src="js/auth.js?v=10"></script>
     <script>
+        // --- Discussion Forum Unread Badge ---
+        async function loadForumUnreadBadge() {
+            try {
+                const token = getToken();
+                if (!token) return;
+                const res = await authenticatedFetch(`${API_URL}/api/chat/unread`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const badge = document.getElementById('forumUnreadBadge');
+                if (!badge) return;
+                if (data.unread_count > 0) {
+                    badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                    badge.style.display = 'inline-flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            } catch (e) { /* silent fail */ }
+        }
+
         // --- FocusBot Logic ---
         function initFocusBot() {
             const user = getUser();
@@ -198,6 +224,10 @@
 
             // Initialize FocusBot
             initFocusBot();
+
+            // Load unread badge for Discussion Forum
+            setTimeout(loadForumUnreadBadge, 800);
+            setInterval(loadForumUnreadBadge, 15000);
 
             loadClassrooms();
         });

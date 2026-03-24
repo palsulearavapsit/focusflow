@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from config import settings
 from database import db
-from routes import auth_routes, session_routes, admin_routes, ml_routes, classroom_routes, tools_routes
+from routes import auth_routes, session_routes, admin_routes, ml_routes, classroom_routes, tools_routes, chat_routes
 import logging
 
 # Configure logging
@@ -48,6 +48,7 @@ app.include_router(admin_routes.router)
 app.include_router(ml_routes.router)
 app.include_router(classroom_routes.router)
 app.include_router(tools_routes.router, prefix="/api/tools", tags=["Tools"])
+app.include_router(chat_routes.router)
 
 
 # Root endpoint

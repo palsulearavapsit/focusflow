@@ -529,3 +529,143 @@ def update_user_title(user_id: int, title: str):
         conn.commit()
     finally:
         cursor.close(); conn.close()
+
+
+# ─── Discussion Forum / Chat Functions ──────────────────────────────────────
+
+def get_chat_contacts(user_id: int, role: str) -> List[Dict]:
+    """Get list of users this person can chat with based on their role.
+    Students: see classmates + their teachers.
+    Teachers: see their students.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        if role == 'student':
+            # Get classmates and teachers from joined classrooms
+            cursor.execute("""
+                SELECT DISTINCT u.id, u.username, u.role
+                FROM users u
+                WHERE u.id != %s
+                  AND (
+                    -- Teachers of the student's classrooms
+                    u.id IN (
+                        SELECT c.teacher_id
+                        FROM classroom_students cs
+                        JOIN classrooms c ON cs.classroom_id = c.id
+                        WHERE cs.student_id = %s
+                    )
+                    OR
+                    -- Classmates in the same classrooms
+                    u.id IN (
+                        SELECT cs2.student_id
+                        FROM classroom_students cs
+                        JOIN classroom_students cs2 ON cs.classroom_id = cs2.classroom_id
+                        WHERE cs.student_id = %s AND cs2.student_id != %s
+                    )
+                  )
+                ORDER BY u.role DESC, u.username ASC
+            """, (user_id, user_id, user_id, user_id))
+        else:
+            # Teacher: see all their students
+            cursor.execute("""
+                SELECT DISTINCT u.id, u.username, u.role
+                FROM users u
+                JOIN classroom_students cs ON u.id = cs.student_id
+                JOIN classrooms c ON cs.classroom_id = c.id
+                WHERE c.teacher_id = %s
+                ORDER BY u.username ASC
+            """, (user_id,))
+        contacts = cursor.fetchall()
+        # Add unread count per contact
+        for contact in contacts:
+            cursor.execute("""
+                SELECT COUNT(*) AS cnt FROM chat_messages
+                WHERE sender_id = %s AND receiver_id = %s AND is_read = FALSE
+            """, (contact['id'], user_id))
+            row = cursor.fetchone()
+            contact['unread_count'] = row['cnt'] if row else 0
+        return contacts
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_chat_history(user_id: int, contact_id: int) -> List[Dict]:
+    """Get private message history between user_id and contact_id.
+    PRIVACY ENFORCED: Only messages where current user is sender OR receiver
+    are returned. No other user's messages can bleed through.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT
+                m.id,
+                m.sender_id,
+                m.receiver_id,
+                m.content,
+                m.is_read,
+                m.created_at,
+                u.username AS sender_name
+            FROM chat_messages m
+            JOIN users u ON m.sender_id = u.id
+            WHERE
+                (m.sender_id = %s AND m.receiver_id = %s)
+                OR
+                (m.sender_id = %s AND m.receiver_id = %s)
+            ORDER BY m.created_at ASC
+        """, (user_id, contact_id, contact_id, user_id))
+        return cursor.fetchall()
+    finally:
+        cursor.close(); conn.close()
+
+
+def send_chat_message(sender_id: int, receiver_id: int, content: str) -> Dict:
+    """Save a new chat message to the database."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "INSERT INTO chat_messages (sender_id, receiver_id, content) VALUES (%s, %s, %s)",
+            (sender_id, receiver_id, content)
+        )
+        conn.commit()
+        msg_id = cursor.lastrowid
+        cursor.execute("""
+            SELECT m.*, u.username AS sender_name
+            FROM chat_messages m
+            JOIN users u ON m.sender_id = u.id
+            WHERE m.id = %s
+        """, (msg_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_unread_count(user_id: int) -> int:
+    """Get total unread messages for a user."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM chat_messages WHERE receiver_id = %s AND is_read = FALSE",
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        return row[0] if row else 0
+    finally:
+        cursor.close(); conn.close()
+
+
+def mark_messages_read(receiver_id: int, sender_id: int):
+    """Mark all messages from sender_id to receiver_id as read."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE chat_messages SET is_read = TRUE WHERE sender_id = %s AND receiver_id = %s AND is_read = FALSE",
+            (sender_id, receiver_id)
+        )
+        conn.commit()
+    finally:
+        cursor.close(); conn.close()
