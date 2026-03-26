@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FocusFlow Games</title>
+    <title>Game Room - FocusFlow</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,51 +12,135 @@
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=5">
+    <link rel="stylesheet" href="css/styles.css?v=11">
     <style>
-        .games-container {
+        .game-viewport {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-xl);
+            min-height: 500px;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            min-height: 80vh;
-            text-align: center;
-            color: white;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--bg-tertiary);
+            box-shadow: var(--shadow-xl);
         }
 
-        .coming-soon-card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 3rem;
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            max-width: 500px;
-            width: 90%;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        .game-card {
+            background: var(--bg-card);
+            border: 1px solid var(--bg-tertiary);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
         }
 
-        .icon {
-            font-size: 4rem;
-            margin-bottom: 1.5rem;
-            animation: bounce 2s infinite;
+        .game-card:hover {
+            transform: translateY(-10px);
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-glow);
         }
 
-        @keyframes bounce {
+        .game-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
 
-            0%,
-            20%,
-            50%,
-            80%,
-            100% {
-                transform: translateY(0);
-            }
+        #gameCanvas {
+            max-width: 100%;
+            border-radius: var(--radius-md);
+        }
 
-            40% {
-                transform: translateY(-20px);
-            }
+        .score-display {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-light);
+            text-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+        }
 
-            60% {
-                transform: translateY(-10px);
-            }
+        .timer-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-color);
+        }
+
+        /* Stroop Specific Styles */
+        .stroop-word {
+            font-size: 5rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            margin-bottom: 3rem;
+        }
+
+        .stroop-btns {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        /* Rotation Challenge Styles */
+        .rotation-container {
+            display: flex;
+            gap: 40px;
+            align-items: center;
+        }
+
+        .shape-box {
+            width: 150px;
+            height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        .shape-svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 0 8px var(--primary-color));
+        }
+
+        /* Pulse Specific Styles */
+        .pulse-circle {
+            width: 300px;
+            height: 300px;
+            border: 4px solid var(--bg-tertiary);
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .pulse-target {
+            width: 40px;
+            height: 40px;
+            background: var(--gradient-primary);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 20px var(--primary-color);
+        }
+
+        .pulse-zone {
+            width: 60px;
+            height: 60px;
+            border: 3px dashed var(--accent-color);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
         }
     </style>
 </head>
@@ -69,7 +153,7 @@
                 <span>◀</span>
             </div>
             <div class="sidebar-header">
-                <a href="#" class="sidebar-brand">FocusFlow</a>
+                <a href="student_dashboard.html" class="sidebar-brand">FocusFlow</a>
             </div>
 
             <nav class="sidebar-nav">
@@ -86,15 +170,9 @@
                     </a>
                 </div>
                 <div class="nav-item">
-                    <a href="student_dashboard.html#classroomsList" class="nav-link">
-                        <span>📚</span>
-                        <span>All Classrooms</span>
-                    </a>
-                </div>
-                <div class="nav-item">
-                    <a href="student_manage_classes.html" class="nav-link">
-                        <span>⚙️</span>
-                        <span>Classroom Management</span>
+                    <a href="discussion_forum.html" class="nav-link">
+                        <span>💬</span>
+                        <span>Discussion Forum</span>
                     </a>
                 </div>
                 <div class="nav-item">
@@ -125,35 +203,97 @@
                     ☰ Menu
                 </button>
 
-                <div class="games-container">
-                    <div class="coming-soon-card">
-                        <div class="icon">🎮</div>
-                        <h1 class="mb-3">Game Room</h1>
-                        <h2 class="mb-4 text-warning">Coming Soon</h2>
-                        <p class="mb-4 text-light">
-                            We're building a collection of short, relaxing games to help you recharge during your study
-                            breaks. Stay tuned!
-                        </p>
-                        <div class="d-grid gap-2">
-                            <a href="student_dashboard.html" class="btn btn-primary">Back to Dashboard</a>
+                <div class="row mb-5">
+                    <div class="col-12">
+                        <h1 class="mb-2">🧠 Mind Gym</h1>
+                        <p class="text-secondary">Train your focus, memory, and spatial reasoning with these cognitive micro-games.</p>
+                    </div>
+                </div>
+
+                <!-- Game Selection Section -->
+                <div id="gameSelection" class="row g-4 mb-5">
+                    <div class="col-md-4">
+                        <div class="card game-card h-100 text-center p-4" onclick="startGame('stroop')">
+                            <div class="game-icon">🌈</div>
+                            <h3 class="text-white">Stroop Test</h3>
+                            <p class="text-muted small">Name the color, not the word. Pure selective attention training.</p>
+                            <button class="btn btn-primary btn-sm mt-auto">Play Now</button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card game-card h-100 text-center p-4" onclick="startGame('pulse')">
+                            <div class="game-icon">⚡</div>
+                            <h3 class="text-white">Focus Pulse</h3>
+                            <p class="text-muted small">Hit the target at the perfect moment. Trains reaction and timing.</p>
+                            <button class="btn btn-primary btn-sm mt-auto">Play Now</button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card game-card h-100 text-center p-4" onclick="startGame('rotation')">
+                            <div class="game-icon">🌀</div>
+                            <h3 class="text-white">Spatial IQ</h3>
+                            <p class="text-muted small">Identify rotated shapes. Improves mental visualization skills.</p>
+                            <button class="btn btn-primary btn-sm mt-auto">Play Now</button>
                         </div>
                     </div>
                 </div>
+
+                <!-- Active Game Viewport -->
+                <div id="gameViewport" class="game-viewport d-none">
+                    <div class="score-display">Score: <span id="currentScore">0</span></div>
+                    <div class="timer-display" id="gameTimer">00:30</div>
+                    
+                    <div id="gameContent" class="w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4">
+                        <!-- Dynamic content injected here -->
+                    </div>
+
+                    <button class="btn btn-outline-danger btn-sm mt-4" style="position: absolute; bottom: 20px;" onclick="quitGame()">Quit Game</button>
+                </div>
+
+                <!-- Game Results Modal -->
+                <div class="modal fade" id="gameResultModal" tabindex="-1">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content bg-card border-0">
+                            <div class="modal-header border-0">
+                                <h5 class="modal-title text-white">Focus Training Complete!</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-center py-4">
+                                <div class="game-icon" id="resultIcon">🏆</div>
+                                <h1 class="display-4 text-primary" id="finalScore">0</h1>
+                                <p class="text-secondary" id="resultMsg">Great effort! Your focus is getting sharper.</p>
+                            </div>
+                            <div class="modal-footer border-0">
+                                <button type="button" class="btn btn-secondary" onclick="quitGame()">Menu</button>
+                                <button type="button" class="btn btn-primary" onclick="restartCurrentGame()">Play Again</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </main>
+    </div>
+
+    <!-- FocusBot Robot Companion -->
+    <div id="focusBot" class="focus-bot d-none">
+        <div class="robot-head">
+            <div class="robot-eyes">
+                <div class="eye"></div>
+                <div class="eye"></div>
+            </div>
+        </div>
+        <div class="robot-body"></div>
     </div>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- Logic -->
-    <script src="js/auth.js?v=5"></script>
+    <script src="js/auth.js?v=11"></script>
+    <script src="js/focusbot.js?v=11"></script>
+    <script src="js/games.js?v=1"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            if (!await protectPage('student')) return;
-            displayUserInfo();
-        });
-
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const mainContent = document.getElementById('mainContent');
