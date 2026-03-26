@@ -172,6 +172,7 @@
 
     <!-- Logic -->
     <script src="js/auth.js?v=10"></script>
+    <script src="js/focusbot.js?v=1"></script>
     <script>
         // --- Discussion Forum Unread Badge ---
         async function loadForumUnreadBadge() {
@@ -192,28 +193,6 @@
             } catch (e) { /* silent fail */ }
         }
 
-        // --- FocusBot Logic ---
-        function initFocusBot() {
-            const user = getUser();
-            const bot = document.getElementById('focusBot');
-            if (!bot) return;
-
-            if (user && user.role === 'admin') {
-                bot.classList.add('d-none');
-                return;
-            }
-
-            bot.classList.remove('d-none');
-            updateFocusBot('happy');
-            bot.title = "Ready to guide your students?";
-        }
-
-        function updateFocusBot(state) {
-            const bot = document.getElementById('focusBot');
-            if (!bot) return;
-            bot.classList.remove('bot-happy', 'bot-distracted', 'bot-away');
-            bot.classList.add(`bot-${state}`);
-        }
 
         // Teacher Logic
         document.addEventListener('DOMContentLoaded', async () => {
@@ -221,9 +200,6 @@
 
             // Display user info from auth.js helper
             displayUserInfo();
-
-            // Initialize FocusBot
-            initFocusBot();
 
             // Load unread badge for Discussion Forum
             setTimeout(loadForumUnreadBadge, 800);
