@@ -20,7 +20,11 @@ let sessionState = {
     cameraAbsenceTime: 0,
     faceAbsenceTime: 0,
     idleTime: 0,
-    currentState: 'focused'
+    currentState: 'focused',
+    groupCode: null,
+    groupParticipantsInterval: null,
+    groupChatInterval: null,
+    lastMsgId: 0
 };
 
 // DOM Elements
@@ -85,10 +89,137 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Check URL Params for Shortcuts
     const urlParams = new URLSearchParams(window.location.search);
+    const groupCode = urlParams.get('group');
+    if (groupCode) {
+        initGroupSession(groupCode);
+    }
 
     // Initialize FocusBot
     initFocusBot();
 });
+
+// --- Group Session Logic ---
+async function initGroupSession(code) {
+    const bar = document.getElementById('groupInfoBar');
+    const codeDisplay = document.getElementById('activeGroupCode');
+    const chatPanel = document.getElementById('groupChatPanel');
+    
+    if (!bar || !codeDisplay) return;
+
+    sessionState.groupCode = code.toUpperCase();
+    codeDisplay.innerText = sessionState.groupCode;
+    bar.classList.remove('d-none');
+
+    // Show Chat Panel if it exists
+    if (chatPanel) chatPanel.classList.remove('d-none');
+
+    // Initialize Chat Handlers
+    const sendBtn = document.getElementById('sendGroupMsgBtn');
+    const chatInput = document.getElementById('groupChatInput');
+    if (sendBtn && chatInput) {
+        sendBtn.addEventListener('click', sendGroupMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendGroupMessage();
+        });
+    }
+
+    // Initial load
+    updateGroupParticipants();
+    updateGroupChat();
+
+    // Start polling every 10 seconds (for participants)
+    sessionState.groupParticipantsInterval = setInterval(updateGroupParticipants, 10000);
+    // Start polling every 3 seconds (for chat)
+    sessionState.groupChatInterval = setInterval(updateGroupChat, 3000);
+}
+
+async function updateGroupParticipants() {
+    if (!sessionState.groupCode) return;
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/api/groups/${sessionState.groupCode}/participants`);
+        if (!res.ok) throw new Error("Failed to load participants");
+
+        const participants = await res.json();
+        const listContainer = document.getElementById('groupParticipantsList');
+        
+        if (listContainer) {
+            listContainer.innerHTML = participants.map(p => `
+                <div class="badge bg-primary bg-opacity-20 text-primary border border-primary border-opacity-30 d-flex align-items-center gap-2 py-2 px-3">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:20px; height:20px; font-size:0.6rem;">
+                        ${p.username.charAt(0).toUpperCase()}
+                    </div>
+                    <span>${p.username}</span>
+                    <span class="small opacity-75">(${p.role})</span>
+                </div>
+            `).join('');
+        }
+    } catch (e) {
+        console.error("Group participants error:", e);
+    }
+}
+
+async function updateGroupChat() {
+    if (!sessionState.groupCode) return;
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/api/groups/${sessionState.groupCode}/chat`);
+        if (!res.ok) throw new Error("Failed to load chat");
+
+        const messages = await res.json();
+        const container = document.getElementById('groupMessages');
+        const badge = document.getElementById('chatMsgCount');
+        const user = getUser();
+
+        if (container && messages.length > 0) {
+            // Only update if we have new messages
+            const latestId = messages[messages.length - 1].id;
+            if (latestId <= sessionState.lastMsgId && container.innerHTML.length > 200) return;
+            sessionState.lastMsgId = latestId;
+
+            badge.innerText = messages.length;
+            container.innerHTML = messages.map(msg => {
+                const isMe = user && msg.sender_id === user.id;
+                return `
+                    <div class="d-flex flex-column ${isMe ? 'align-items-end' : 'align-items-start'}">
+                        <div class="d-flex gap-2 mb-1" style="font-size: 0.7rem; opacity: 0.7;">
+                            <strong>${msg.sender_name}</strong>
+                            <span>${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <div class="p-2 rounded-3" style="background: ${isMe ? 'var(--primary-color)' : 'rgba(255,255,255,0.1)'}; color: white; max-width: 85%;">
+                            ${msg.content}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+    } catch (e) {
+        console.error("Group chat error:", e);
+    }
+}
+
+async function sendGroupMessage() {
+    const input = document.getElementById('groupChatInput');
+    const content = input.value.trim();
+    if (!content || !sessionState.groupCode) return;
+
+    try {
+        const res = await authenticatedFetch(`${API_URL}/api/groups/${sessionState.groupCode}/chat`, {
+            method: 'POST',
+            body: JSON.stringify({ content })
+        });
+
+        if (res.ok) {
+            input.value = '';
+            updateGroupChat();
+        }
+    } catch (e) {
+        console.error("Send message error:", e);
+    }
+}
 
 // --- FocusBot Logic ---
 function initFocusBot() {

@@ -338,6 +338,15 @@
                             <!-- Timer -->
                             <div class="timer-display" id="timerDisplay">00:00</div>
 
+                            <!-- Group Info (Optional, shown if in a group session) -->
+                            <div id="groupInfoBar" class="d-none mb-4 p-3 rounded-4 bg-primary bg-opacity-10 border border-primary border-opacity-20 text-center">
+                                <div class="small text-secondary mb-1">Studying in Room</div>
+                                <div class="h4 mb-2 text-primary fw-bold" id="activeGroupCode" style="letter-spacing: 0.2rem;">------</div>
+                                <div class="d-flex justify-content-center flex-wrap gap-2" id="groupParticipantsList">
+                                    <span class="badge bg-secondary">Loading participants...</span>
+                                </div>
+                            </div>
+
                             <!-- Session Controls -->
                             <div class="session-controls">
                                 <div class="btn-group" role="group">
@@ -511,6 +520,26 @@
                     <div id="videoContainer"
                         class="ratio ratio-16x9 d-none border border-secondary rounded overflow-hidden">
                         <iframe id="youtubeEmbedFrame" src="" title="YouTube video" allowfullscreen></iframe>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Middle Section: Group Chat (Visible only during group sessions) -->
+            <div id="groupChatPanel" class="d-none border-bottom border-secondary d-flex flex-column h-50" style="background: var(--bg-secondary);">
+                <div class="p-3 border-bottom border-secondary d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">💬 Group Chat</h6>
+                    <span class="badge bg-primary" id="chatMsgCount">0</span>
+                </div>
+                
+                <div id="groupMessages" class="flex-grow-1 p-3 overflow-auto d-flex flex-column gap-2" style="font-size: 0.85rem;">
+                    <!-- Messages appear here -->
+                    <div class="text-center text-muted py-5 mt-5">No messages yet. Start the conversation!</div>
+                </div>
+
+                <div class="p-3 bg-dark">
+                    <div class="input-group input-group-sm">
+                        <input type="text" id="groupChatInput" class="form-control bg-secondary text-light border-0" placeholder="Type a message...">
+                        <button class="btn btn-primary" id="sendGroupMsgBtn">Send</button>
                     </div>
                 </div>
             </div>

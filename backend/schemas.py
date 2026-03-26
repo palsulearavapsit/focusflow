@@ -412,3 +412,42 @@ class CognitiveAnalysisResponse(BaseModel):
     recommended_action: RecommendedAction
     analysis: str
     motivation_message: str
+
+# Group Session Models
+class GroupSessionCreateRequest(BaseModel):
+    """Request to create a group session"""
+    pass # No extra fields for now, maybe technique later
+
+class GroupJoinRequest(BaseModel):
+    """Request to join a group session"""
+    code: str = Field(..., min_length=6, max_length=6)
+
+class GroupParticipantResponse(BaseModel):
+    """Participant in a group session"""
+    id: Union[str, int]
+    username: str
+    role: str
+    title: Optional[str]
+    joined_at: datetime
+
+class GroupSessionResponse(BaseModel):
+    """Group session response model"""
+    id: Union[str, int]
+    meeting_code: str
+    host_id: Union[str, int]
+    status: str
+    created_at: datetime
+    participants: Optional[List[GroupParticipantResponse]] = None
+
+class GroupMessageRequest(BaseModel):
+    """Request to send a message in group session"""
+    content: str = Field(..., min_length=1)
+
+class GroupMessageResponse(BaseModel):
+    """Response for a single message in group session"""
+    id: int
+    group_session_id: int
+    sender_id: int
+    sender_name: str
+    content: str
+    created_at: datetime

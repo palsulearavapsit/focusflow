@@ -669,3 +669,121 @@ def mark_messages_read(receiver_id: int, sender_id: int):
         conn.commit()
     finally:
         cursor.close(); conn.close()
+# ─── Group Session / Meeting Functions ──────────────────────────────────────
+
+def create_group_session(host_id: int, meeting_code: str) -> Dict:
+    """Create a new group session with a unique code"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "INSERT INTO group_sessions (meeting_code, host_id) VALUES (%s, %s)",
+            (meeting_code, host_id)
+        )
+        conn.commit()
+        session_id = cursor.lastrowid
+        cursor.execute("SELECT * FROM group_sessions WHERE id = %s", (session_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_group_session_by_code(code: str) -> Optional[Dict]:
+    """Get active group session by its 6-letter code"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT * FROM group_sessions WHERE meeting_code = %s AND status = 'active'", 
+            (code,)
+        )
+        return cursor.fetchone()
+    finally:
+        cursor.close(); conn.close()
+
+
+def add_participant_to_group(group_session_id: int, user_id: int):
+    """Add a user to a group session's participant list"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT IGNORE INTO group_session_participants (group_session_id, user_id) VALUES (%s, %s)",
+            (group_session_id, user_id)
+        )
+        conn.commit()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_group_participants(group_session_id: int) -> List[Dict]:
+    """Get list of all users currently in the group session"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT u.id, u.username, u.role, u.title, p.joined_at
+            FROM group_session_participants p
+            JOIN users u ON p.user_id = u.id
+            WHERE p.group_session_id = %s
+            ORDER BY p.joined_at ASC
+        """, (group_session_id,))
+        return cursor.fetchall()
+    finally:
+        cursor.close(); conn.close()
+
+
+def end_group_session(group_session_id: int):
+    """Mark a group session as ended"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE group_sessions SET status = 'ended' WHERE id = %s",
+            (group_session_id,)
+        )
+        conn.commit()
+    finally:
+        cursor.close(); conn.close()
+
+
+# ─── Group Chat Functions ────────────────────────────────────────────────────
+
+def send_group_message(group_session_id: int, sender_id: int, content: str) -> Dict:
+    """Save a new message for a group session"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "INSERT INTO group_messages (group_session_id, sender_id, content) VALUES (%s, %s, %s)",
+            (group_session_id, sender_id, content)
+        )
+        conn.commit()
+        msg_id = cursor.lastrowid
+        cursor.execute("""
+            SELECT m.*, u.username AS sender_name
+            FROM group_messages m
+            JOIN users u ON m.sender_id = u.id
+            WHERE m.id = %s
+        """, (msg_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close(); conn.close()
+
+
+def get_group_messages_db(group_session_id: int, limit: int = 50) -> List[Dict]:
+    """Get recent messages for a group session"""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT m.*, u.username AS sender_name
+            FROM group_messages m
+            JOIN users u ON m.sender_id = u.id
+            WHERE m.group_session_id = %s
+            ORDER BY m.created_at ASC
+            LIMIT %s
+        """, (group_session_id, limit))
+        return cursor.fetchall()
+    finally:
+        cursor.close(); conn.close()

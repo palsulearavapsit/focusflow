@@ -153,3 +153,28 @@ SELECT
 INSERT INTO users (username, email, password_hash, role) VALUES
 ('admin', 'admin@focusflow.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqVr/qvQu6', 'admin')
 ON DUPLICATE KEY UPDATE username=username;
+
+-- ─── Group Sessions Table ───────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS group_sessions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    meeting_code VARCHAR(10) NOT NULL UNIQUE,
+    host_id INT NOT NULL,
+    status ENUM('active', 'ended') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (host_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_meeting_code (meeting_code),
+    INDEX idx_host_id (host_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── Group Session Participants Table ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS group_session_participants (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    group_session_id INT NOT NULL,
+    user_id INT NOT NULL,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (group_session_id) REFERENCES group_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_p_membership (group_session_id, user_id),
+    INDEX idx_group_session (group_session_id),
+    INDEX idx_p_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
