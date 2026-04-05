@@ -65,31 +65,36 @@
                 <div class="nav-item">
                     <a href="teacher_dashboard.html" class="nav-link active">
                         <span>📊</span>
-                        <span>Dashboard</span>
+                        <span data-i18n="dashboard">Dashboard</span>
                     </a>
                 </div>
                 <div class="nav-item">
                     <a href="teacher_classrooms.html" class="nav-link">
                         <span>🏫</span>
-                        <span>My Classrooms</span>
+                        <span data-i18n="my_classrooms">My Classrooms</span>
                     </a>
                 </div>
                 <div class="nav-item">
                     <a href="teacher_students.html" class="nav-link">
                         <span>👥</span>
-                        <span>My Students</span>
+                        <span data-i18n="my_students">My Students</span>
                     </a>
                 </div>
                 <div class="nav-item">
                     <a href="discussion_forum.html" class="nav-link" style="position:relative;">
                         <span>💬</span>
-                        <span>Discussion Forum</span>
+                        <span data-i18n="discussion_forum">Discussion Forum</span>
                         <span id="forumUnreadBadge" style="display:none; background:#ef4444; color:#fff; font-size:0.65rem; font-weight:700; min-width:18px; height:18px; border-radius:9px; padding:0 5px; align-items:center; justify-content:center; margin-left:auto;"></span>
                     </a>
                 </div>
             </nav>
 
             <div class="sidebar-footer">
+                <div class="language-selector d-flex justify-content-between mb-3 px-1 border-bottom border-secondary pb-3">
+                    <button id="btn-lang-en" class="btn btn-sm btn-primary flex-grow-1 mx-1" onclick="changeLanguage('en')" style="font-size: 0.7rem; padding: 0.2rem 0;">ENG</button>
+                    <button id="btn-lang-hi" class="btn btn-sm btn-outline-secondary flex-grow-1 mx-1" onclick="changeLanguage('hi')" style="font-size: 0.7rem; padding: 0.2rem 0;">HIN</button>
+                    <button id="btn-lang-mr" class="btn btn-sm btn-outline-secondary flex-grow-1 mx-1" onclick="changeLanguage('mr')" style="font-size: 0.7rem; padding: 0.2rem 0;">MAR</button>
+                </div>
                 <div class="user-profile mb-3">
                     <div class="avatar-circle" id="userAvatar">T</div>
                     <div class="user-info">
@@ -97,7 +102,7 @@
                         <div class="user-role">Teacher</div>
                     </div>
                 </div>
-                <button class="btn btn-outline btn-sm w-100" onclick="logout()">Sign Out</button>
+                <button class="btn btn-outline btn-sm w-100" onclick="logout()" data-i18n="sign_out">Sign Out</button>
             </div>
         </aside>
 
@@ -173,6 +178,7 @@
     <!-- Logic -->
     <script src="js/auth.js?v=10"></script>
     <script src="js/focusbot.js?v=1"></script>
+    <script src="js/i18n.js"></script>
     <script>
         // --- Discussion Forum Unread Badge ---
         async function loadForumUnreadBadge() {
