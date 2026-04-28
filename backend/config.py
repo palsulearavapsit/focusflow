@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # JWT Configuration
     # IMPORTANT: Generate a secure secret key for production
     # You can generate one using: openssl rand -hex 32
-    SECRET_KEY: str = "7a9c8d5e1f3b2a4c6d8e0f1a3b5c7d9e2f4a6b8c0d1e3f5a7b9c1d3e5f7a9b2"
+    SECRET_KEY: str = "your-secret-key-goes-here"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_HOURS: int = 24
     
